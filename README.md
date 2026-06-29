@@ -1,112 +1,193 @@
 # Battle.net Integration for GOG Galaxy 2.1+ (64-bit)
 
-**Current Version: 2.1.3-64bit**
+**Current Version: 2.1.7-64bit**
 
-This repository provides a fully modernized, 64-bit compatible Battle.net (Blizzard) community integration for GOG Galaxy 2.1+. It resolves every known incompatibility between the legacy 32-bit plugin and the current 64-bit GOG Galaxy client running Python 3.13, restores OAuth authentication using a personal Blizzard developer client, regenerates the protobuf game database for modern library support, and ships native 64-bit compiled dependencies.
+This repository contains the Battle.net community integration for the 64-bit version of GOG Galaxy 2.1+.
 
-For a complete technical breakdown of all changes, see [CHANGELOG.md](CHANGELOG.md).
+The project has been modernized to work with the current 64-bit GOG Galaxy client and Python 3.13. It includes compatibility fixes, regenerated protocol files, updated 64-bit dependencies, stability improvements, and ongoing maintenance.
 
 ---
 
-## What this repository provides
+## ✨ Features
 
-- A fully 64-bit compatible Battle.net integration for GOG Galaxy 2.1+
-- Working OAuth authentication via a personal Blizzard developer client (the original shared credentials were revoked by Blizzard)
-- Regenerated `product_db_pb2.py` compatible with `protobuf >= 4.x` / Python 3.13
-- Bundled, precompiled native 64-bit Python 3.13 C-extensions required by the plugin
-- A rebuilt game definitions database with modern Blizzard and Activision titles including Diablo IV
-- Classic 32-bit game detection restored on 64-bit Windows/Python
-- Warcraft III classic games (Reign of Chaos & The Frozen Throne) handled correctly — no false "installed" state, guided setup page included
-- Instant login window (region pre-warming eliminates the 3–4 second delay on first connect)
-- Guided one-time setup page (`setup.html`) that appears inside GOG Galaxy when the plugin is not yet configured
+- Compatible with GOG Galaxy 2.1+ (64-bit)
+- Python 3.13 support
+- Updated 64-bit native dependencies
+- Restored classic game detection on 64-bit Windows
+- Modernized OAuth authentication for Battle.net
+- Regenerated `product_db_pb2.py` for current protobuf support
+- Guided setup flow for first-time configuration
+- Warcraft III Classic helper pages included in the repository
+
+---
+
+## Setup Flow
+
+This plugin includes a local `setup.html` page that is opened inside GOG Galaxy during the first login or connect flow while the plugin is still missing valid OAuth credentials.
+
+The setup page will continue to appear until you enter valid values for `CLIENT_ID` and `CLIENT_SECRET` in `consts.py`. After those values are set, the setup page is no longer called.
+
+The repository also includes `wc3_classic_info.html` for Warcraft III Classic games, and `wc3_classic_info_DE.html` is included for German users.
 
 ---
 
 ## Requirements: Your Own Blizzard OAuth Client
 
-> ⚠️ **This is a mandatory one-time setup step.**
+> Important: this is a mandatory one-time setup step.
 
-The original shared `CLIENT_ID` and `CLIENT_SECRET` used by the community plugin have been revoked by Blizzard. You must register your own free OAuth client before the plugin can authenticate.
+The original shared Battle.net OAuth credentials used by older community integrations are no longer valid. You must create your own free OAuth client before the plugin can authenticate.
 
-1. Go to [https://develop.battle.net](https://develop.battle.net) and log in with your Battle.net account.
-2. Navigate to **API Access → Manage Your Clients → Create Client**.
+1. Go to `https://develop.battle.net` and log in with your Battle.net account.
+2. Open `API Access -> Manage Your Clients -> Create Client`.
 3. Fill in the form:
-   - **Client Name:** `GOG Galaxy Plugin` (or anything you like)
-   - **Redirect URLs:** `http://friendsofgalaxy.com`
-   - Check **"I do not have a service URL for this client"**
-   - **Intended Use:** `Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.`
-4. Click **Save**. You will receive a **Client ID** and a **Client Secret**.
-5. Open `consts.py` in the plugin folder and replace the values:
+   - Client Name: `GOG Galaxy Plugin` or any name you prefer
+   - Redirect URLs: `http://friendsofgalaxy.com`
+   - Enable `I do not have a service URL for this client`
+   - Intended Use: `Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.`
+4. Save the client.
+5. Open `consts.py` in the plugin folder and replace the placeholder values:
    ```python
    CLIENT_ID = "your_client_id_here"
    CLIENT_SECRET = "your_client_secret_here"
    ```
 
-> 💡 Keep your `CLIENT_SECRET` private. Never share it publicly.
+Keep `CLIENT_SECRET` private. Do not share it publicly.
 
 ---
 
-## Installation
+## 📦 Installation
 
-### Step 1: Install the 64-bit Plugin Files
+### Standard Installation
 
-Because this fix includes new 64-bit compiled dependencies, you **must** overwrite the entire plugin folder, not just the `.py` files.
+1. Close GOG Galaxy completely, including the system tray icon.
+2. Download the latest release ZIP from this repository.
+3. Open this folder:
+   ```text
+   %localappdata%\GOG.com\Galaxy\plugins\installed\
+   ```
+4. Extract the ZIP archive directly into the folder named:
+   ```text
+   battlenet_ba170431-0649-482f-863b-d248592f1842
+   ```
+5. Open `consts.py` and enter your personal `CLIENT_ID` and `CLIENT_SECRET`.
+6. Start GOG Galaxy again.
 
-1. **Fully close** GOG Galaxy (including the system tray icon).
-2. Download the latest release `.zip` from this repository.
-3. Navigate to your GOG community plugins folder:
-   `%localappdata%\GOG.com\Galaxy\plugins\installed\`
-4. Find the folder named `battlenet_ba170431-0649-482f-863b-d248592f1842`.
-5. Delete the contents of this folder and extract the downloaded `.zip` into it.
-6. Open `consts.py` and enter your personal `CLIENT_ID` and `CLIENT_SECRET` (see above).
+The final directory structure should look like this:
 
-### Step 2: Reset the Local Cache Database (Mandatory)
+```text
+%localappdata%\GOG.com\Galaxy\plugins\installed\
+└── battlenet_ba170431-0649-482f-863b-d248592f1842\
+    ├── manifest.json
+    ├── plugin.py
+    ├── README.md
+    ├── setup.html
+    ├── wc3_classic_info.html
+    ├── wc3_classic_info_DE.html
+    └── ...
+```
 
-The game database has been significantly expanded. You must reset the local GOG Galaxy cache to allow it to rebuild correctly.
+### If the plugin folder is missing
 
-1. Navigate to:
-   `C:\ProgramData\GOG.com\Galaxy\storage\plugins\`
-   *(or paste `%ProgramData%\GOG.com\Galaxy\storage\plugins\` into the Windows search bar)*
-2. Find files starting with `battlenet_` and ending with `-storage.db`.
-3. Rename them by appending `.old` (e.g. `battlenet_ba170431...-storage.db.old`).
-4. Launch GOG Galaxy, go to **Settings → Integrations** and connect your Battle.net account.
-
----
-
-## Warcraft III Classic Games
-
-**Warcraft® III: Reign of Chaos®** and **Warcraft® III: The Frozen Throne®** appear in GOG Galaxy as **not installed**. This is intentional.
-
-Blizzard merged both classics into a single legacy build called **Warcraft III – Legacy TFT 1.29**, accessible inside the Reforged launcher via a version dropdown. Their original installer no longer creates a dedicated registry entry — it now shares the same key as Warcraft III: Reforged. Detecting them via the registry would therefore always return the Reforged install path and falsely mark them as installed, which would prevent them from launching at all.
-
-Clicking **Install** in GOG Galaxy will open `wc3_classic_info.html`, a local guide that explains your two options for playing them:
-
-- **Route A – Standalone launchers:** Download the classic executables directly from your Blizzard account page under *Account Settings → Games & Subscriptions → Classic Games*. This requires a registered product key for both titles.
-- **Route B – Battle.net launcher:** If you own Warcraft III: Reforged, open the Battle.net launcher, select Warcraft III, click the dropdown next to the Play button and choose **Warcraft III – Legacy TFT 1.29**.
-
-> ⚠️ A valid, registered product key is required for both routes. Keys can be redeemed at [us.shop.battle.net](https://us.shop.battle.net/en-us) → Profile icon → Account Settings → Account Overview → Redeem a Code.
-
----
-
-## Known Limitations
-
-**Some unowned Free-to-Play games appear in your library.**
-
-Blizzard's `/api/games-and-subs` endpoint is restricted to internal first-party applications and returns HTTP 401 for any externally registered OAuth client. The plugin therefore cannot distinguish between games you have purchased and games that are free-to-play for everyone. All F2P titles in the database (StarCraft, StarCraft II, World of Warcraft, Hearthstone, Heroes of the Storm, Diablo Immortal, Warcraft Rumble, Call of Duty titles, etc.) will appear in your library regardless of ownership.
-
-**Workaround:** Right-click any unwanted game in GOG Galaxy → **Hide**.
+If a future ZIP archive does not already contain the folder
+```text
+battlenet_ba170431-0649-482f-863b-d248592f1842
+```
+create that folder first, then extract all files from the ZIP archive into it.
 
 ---
 
-## Credits & Support
+## 🔄 Resetting the Plugin Database
 
-* **Original Plugin Authors:** FriendsOfGalaxy, bartok765, and contributors ([GitHub Repository](https://github.com/FriendsOfGalaxy/galaxy-integration-blizzard))
-* **Based on the galaxy-integration-blizzard 1.4.3 codebase:** FriendsOfGalaxy and contributors to that release
-* **64-bit Port, OAuth Fix, Modernization & Continued Development:** melcom
+If the plugin behaves unexpectedly after an update, resetting the local plugin database is recommended.
 
-Questions, issues or feedback:
+1. Open:
+   ```text
+   C:\ProgramData\GOG.com\Galaxy\storage\plugins\
+   ```
+2. Locate all files beginning with:
+   ```text
+   battlenet_
+   ```
+   and ending with:
+   ```text
+   -storage.db
+   ```
+3. Rename each database by appending `.old` to the filename.
 
-* [https://www.melcom-music.de/contact.html](https://www.melcom-music.de/contact.html)
-* Discord: **.melcom** (note the leading dot)
+Example:
+```text
+battlenet_xxxxxxxxx-storage.db
+```
+becomes:
+```text
+battlenet_xxxxxxxxx-storage.db.old
+```
 
-*Have fun and happy gaming!*
+4. Start GOG Galaxy again.
+5. Reconnect the Battle.net integration if needed.
+
+---
+
+## ⚠️ Important
+
+Do not place backup copies of this plugin inside the `plugins\installed` directory.
+
+GOG Galaxy scans every folder inside this directory during startup. Duplicate plugin folders can lead to GUID conflicts or cause Galaxy to load an outdated version of the plugin.
+
+---
+
+## 🙏 Credits
+
+**Original Community Integration**  
+Friends of Galaxy  
+https://github.com/FriendsOfGalaxy/galaxy-integration-steam
+
+**Authorization Flow Contributions**  
+ABaumher  
+https://github.com/ABaumher
+
+**64-bit Port, Maintenance and Improvements**  
+melcom
+
+---
+
+## 📚 References
+
+This integration is based on and inspired by several open-source projects and community resources.
+
+- https://github.com/SteamRE/SteamKit
+- https://github.com/ValuePython/steam
+- https://github.com/prncc/steam-scraper
+- https://github.com/rhaarm/steam-scraper
+- https://github.com/mulhod/steam_reviews
+- https://github.com/summersb92/aeolipile
+- https://github.com/rcpoison/steam-scraper
+- https://github.com/chmccc/steam-scraper
+
+---
+
+## ❤️ Special Thanks
+
+I want to take a moment to thank the people who kept me going during this intense development phase:
+
+- A huge thank you to my friend [**Hustlefan**](https://www.gog.com/u/Hustlefan). Over the past few days, you have been much more than just moral support. You gave me the encouragement I needed, patiently put up with all my Discord spam, and helped beta test the plugins. I am really happy that you are pleased with the results. Thank you so much for all your support, my friend.
+
+- And a big thank you to my girlfriend [**Florence H.** (fl0H0815)](https://www.gog.com/u/Florence_Heart). While she was enjoying the good life at her parents' place - complete with air conditioning and a huge swimming pool - she kept my spirits up by sending me photos of herself, her friends, her parents, and even her parents' dog. She reminded me that there is a wonderful world outside of a code editor every now and then.
+
+  Now that is what I call real support.
+
+Thank you both for having my back!
+
+---
+
+## 🤝 Support & Feedback
+
+This project is developed and maintained by one person. Response times may vary, especially during periods where health-related limitations reduce available development time.
+
+GitHub Issues are intentionally disabled.
+
+If you would like to report a bug or suggest an improvement, please use the contact form on my website:
+
+https://melcom-creations.github.io/melcom-music/contact.html
+
+Thank you for your patience and support!
