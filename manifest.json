@@ -1,10 +1,10 @@
 {
-    "name": "Galaxy Battle.net plugin",
-    "platform": "battlenet",
-    "guid": "ba170431-0649-482f-863b-d248592f1842",
-    "version": "2.1.7-64bit",
-    "description": "Battle.net integration for GOG Galaxy 2.1+ (64-bit)",
+    "name": "Itch.io integration",
+    "platform": "itch",
+    "guid": "2df02142-4d8a-4a4b-9b6e-c3a0bc62f93b",
+    "version": "2.1.2-64bit",
+    "description": "Itch.io integration for GOG Galaxy 2.1+ (64-bit)",
     "author": "melcom",
-    "url": "https://github.com/melcom-creations/galaxy-integration-bnet",
-    "script": "plugin.py"
+    "url": "https://github.com/melcom-creations/galaxy-integration-itch",
+    "script": "itch.py"
 }

@@ -1,270 +1,34 @@
-from definitions import WebsiteAuthData
-import pickle
-import asyncio
-import secrets
-
-import requests
-import requests.cookies
-from urllib.parse import urlparse, parse_qs
-from functools import partial
-
-from galaxy.api.errors import InvalidCredentials
-from galaxy.api.types import Authentication, NextStep
-
-from consts import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, FIREFOX_AGENT
-from region_helper import _found_region, guess_region
+import logging
+import aiohttp
+from galaxy.api.errors import AuthenticationRequired
+from galaxy.http import create_client_session
 
 
-class AuthenticatedHttpClient(object):
-    def __init__(self, plugin):
-        self._plugin = plugin
-        self.user_details = None
-        self._region = None
-        self.session = None
-        self.creds = None
-        self.timeout = 40.0
-        self.attempted_to_set_battle_tag = None
-        self.auth_data = None
-        self._oauth_state = None
+class HTTPClient(object):
+    def __init__(self, store_credentials):
+        self._store_credentials = store_credentials
+        self._access_token = None
+        self.session = create_client_session()
 
-    def is_authenticated(self):
-        return self.session is not None
-
-    async def shutdown(self):
-        if self.session:
-            self.session.close()
-            self.session = None
-
-    def process_stored_credentials(self, stored_credentials):
-        auth_data = WebsiteAuthData(
-            cookie_jar=pickle.loads(bytes.fromhex(stored_credentials['cookie_jar'])),
-            access_token=stored_credentials['access_token'],
-            region=stored_credentials['region'] if 'region' in stored_credentials else 'eu'
-        )
-
-        # Load the cached user details when available.
-        if 'user_details_cache' in stored_credentials:
-            self.user_details = stored_credentials['user_details_cache']
-            self.auth_data = auth_data
-        return auth_data
-
-    async def get_auth_data_login(self, cookie_jar, credentials):
-        code = parse_qs(urlparse(credentials['end_uri']).query)["code"][0]
-        loop = asyncio.get_running_loop()
-
-        s = requests.Session()
-        url = f"{self.blizzard_oauth_url}/token"
-        data = {
-            "grant_type": "authorization_code",
-            "redirect_uri": REDIRECT_URI,
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "code": code
-        }
-        response = await loop.run_in_executor(None, partial(s.post, url, data=data))
-        response.raise_for_status()
-        result = response.json()
-        access_token = result["access_token"]
-        self.auth_data = WebsiteAuthData(cookie_jar=cookie_jar, access_token=access_token, region=self.region)
-        return self.auth_data
-
-    async def refresh_access_token_with_cookies(self) -> str:
-        """
-        Silently intercepts the OAuth redirect chain using stored session cookies,
-        extracts the fresh authorization code, and exchanges it for a new access token.
-        This keeps the user logged in permanently across GOG Galaxy restarts.
-        """
-        loop = asyncio.get_running_loop()
-        headers = {
-            'User-Agent': FIREFOX_AGENT
-        }
-        url = f"{self.blizzard_accounts_url}:443/oauth2/authorization/account-settings"
-        
-        # Request the account settings page with the stored cookies.
-        response = await loop.run_in_executor(
-            None, 
-            partial(self.session.get, url, headers=headers, allow_redirects=True, timeout=self.timeout)
-        )
-        
-        # Inspect the redirect chain for the authorization code.
-        code = None
-        for resp in [response] + response.history:
-            parsed = urlparse(resp.url)
-            query = parse_qs(parsed.query)
-            if "code" in query:
-                code = query["code"][0]
-                break
-                
-        if not code:
-            raise InvalidCredentials("No authorization code found in cookie refresh flow")
-            
-        # Exchange the authorization code for an OAuth access token.
-        token_url = f"{self.blizzard_oauth_url}/token"
-        data = {
-            "grant_type": "authorization_code",
-            "redirect_uri": REDIRECT_URI,
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "code": code
-        }
-        
-        token_response = await loop.run_in_executor(
-            None, 
-            partial(self.session.post, token_url, data=data, timeout=self.timeout)
-        )
-        token_response.raise_for_status()
-        result = token_response.json()
-        
-        # Update the active session credentials after token refresh.
-        new_token = result["access_token"]
-        self.auth_data.access_token = new_token
-        self.session.headers["Authorization"] = f"Bearer {new_token}"
-        
-        # Persist the refreshed credentials in GOG Galaxy storage.
-        self.refresh_credentials()
-        return new_token
-
-    # Prefer live user data when the token remains valid.
-    # Fall back to the stored usertag and name if token validation fails.
-    
-    def validate_auth_status(self, auth_status):
-        if 'error' in auth_status:
-            if not self.user_details:
-                raise InvalidCredentials()
-            else:
-                return False
-        elif not self.user_details:
-            raise InvalidCredentials()
+    def update_cookies(self, credentials):
+        # Credentials may contain an access token or cookie data.
+        if isinstance(credentials, dict) and "access_token" in credentials:
+            self._access_token = credentials["access_token"]
+            logging.info("HTTPClient: access_token set")
         else:
-            if not ("authorities" in auth_status and "IS_AUTHENTICATED_FULLY" in auth_status["authorities"]):
-                raise InvalidCredentials()
-            return True
+            # Use cookie-based authentication when no access token is available.
+            logging.warning("HTTPClient: no access_token in credentials, got: %s", list(credentials.keys()) if credentials else None)
 
-    def parse_user_details(self):
-        if 'id' and 'battletag' in self.user_details:
-            return Authentication(self.user_details["id"], self.user_details["battletag"])
-        else:
-            raise InvalidCredentials()
+    async def get(self, url):
+        logging.debug('HTTPClient.get: %s', url)
+        headers = {}
+        if self._access_token:
+            headers["Authorization"] = f"Bearer {self._access_token}"
+        response = await self.session.get(url, headers=headers)
+        parsed = await response.json()
+        if response.status == 401:
+            raise AuthenticationRequired()
+        return parsed
 
-    def authenticate_using_login(self):
-        self._oauth_state = secrets.token_hex(16)
-        _URI = (
-            f'{self.blizzard_oauth_url}/authorize'
-            f'?response_type=code'
-            f'&client_id={CLIENT_ID}'
-            f'&redirect_uri={REDIRECT_URI}'
-            f'&scope=wow.profile+sc2.profile'
-            f'&state={self._oauth_state}'
-        )
-        auth_params = {
-            "window_title": "Login to Battle.net",
-            "window_width": 540,
-            "window_height": 700,
-            "start_uri": _URI,
-            "end_uri_regex": r"(.*logout&app=oauth.*)|(^http://friendsofgalaxy\.com.*)"
-        }
-        return NextStep("web_session", auth_params)
-
-    def parse_auth_after_setting_battletag(self):
-        self.creds["user_details_cache"] = self.user_details
-        try:
-            battletag = self.user_details["battletag"]
-        except KeyError:
-            raise InvalidCredentials()
-        self._plugin.store_credentials(self.creds)
-        return Authentication(self.user_details["id"], battletag)
-
-    def parse_cookies(self, cookies):
-        if not self.region:
-            self.region = _found_region(cookies)
-        new_cookies = {cookie["name"]: cookie["value"] for cookie in cookies}
-        return requests.cookies.cookiejar_from_dict(new_cookies)
-
-    def set_credentials(self):
-        self.creds = {"cookie_jar": pickle.dumps(self.auth_data.cookie_jar).hex(), "access_token": self.auth_data.access_token,
-                      "user_details_cache": self.user_details, "region": self.auth_data.region}
-
-    def parse_battletag(self):
-        try:
-            battletag = self.user_details["battletag"]
-        except KeyError:
-            st_parameter = requests.utils.dict_from_cookiejar(
-                self.auth_data.cookie_jar)["BA-tassadar"]
-            start_uri = f'{self.blizzard_battlenet_login_url}/flow/' \
-                            f'app.app?step=login&ST={st_parameter}&app=app&cr=true'
-            auth_params = {
-                "window_title": "Login to Battle.net",
-                "window_width": 540,
-                "window_height": 700,
-                "start_uri": start_uri,
-                "end_uri_regex": r".*accountName.*"
-            }
-            self.attempted_to_set_battle_tag = True
-            return NextStep("web_session", auth_params)
-
-        self._plugin.store_credentials(self.creds)
-        return Authentication(self.user_details["id"], battletag)
-
-    async def create_session(self):
-        self.session = requests.Session()
-        self.session.cookies = self.auth_data.cookie_jar
-        self.region = self.auth_data.region
-        self.session.max_redirects = 300
-        self.session.headers = {
-            "Authorization": f"Bearer {self.auth_data.access_token}",
-            "User-Agent": FIREFOX_AGENT
-        }
-
-    def refresh_credentials(self):
-        creds = {
-            "cookie_jar": pickle.dumps(self.session.cookies).hex(),
-            "access_token": self.auth_data.access_token,
-            "region": self.auth_data.region,
-            "user_details_cache": self.user_details
-        }
-        self._plugin.store_credentials(creds)
-
-    @property
-    def region(self):
-        if self._region is None:
-            self._region = guess_region(self._plugin.local_client)
-        return self._region
-
-    @region.setter
-    def region(self, value):
-        self._region = value
-
-    @property
-    def blizzard_accounts_url(self):
-        if self.region == 'cn':
-            return "https://account.blizzardgames.cn"
-        else:
-            return f"https://{self.region}.account.blizzard.com"
-
-    @property
-    def blizzard_oauth_url(self):
-        if self.region == 'cn':
-            return "https://www.battlenet.com.cn/oauth"
-        else:
-            return f"https://{self.region}.battle.net/oauth"
-
-    @property
-    def blizzard_api_url(self):
-        if self.region == 'cn':
-            return "https://gateway.battlenet.com.cn"
-        else:
-            return f"https://{self.region}.api.blizzard.com"
-
-    @property
-    def blizzard_battlenet_download_url(self):
-        if self.region == 'cn':
-            return "https://cn.blizzard.com/zh-cn/apps/battle.net/desktop"
-        else:
-            return "https://www.blizzard.com/apps/battle.net/desktop"
-
-    @property
-    def blizzard_battlenet_login_url(self):
-        if self.region == 'cn':
-            return 'https://www.battlenet.com.cn/login/zh'
-        else:
-            return f'https://{self.region}.battle.net/login/en'
+    async def close(self):
+        await self.session.close()

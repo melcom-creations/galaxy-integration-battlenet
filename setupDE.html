@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en-US">
+<html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>itch.io Plugin – Setup</title>
+<title>itch.io Plugin – Einrichtung</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -221,15 +221,15 @@
   <div class="header">
     <div class="header-icon">🎮</div>
     <div>
-      <h1>itch.io Plugin – Setup</h1>
-      <p>GOG Galaxy 2.1+ · 64-bit · One-time setup</p>
+      <h1>itch.io Plugin – Einrichtung</h1>
+      <p>GOG Galaxy 2.1+ · 64-Bit · Einmalige Einrichtung</p>
     </div>
   </div>
 
   <div class="warning">
     <div>⚠&nbsp;&nbsp;</div>
     <div>
-      <strong>One-time setup required.</strong> The plugin requires the <strong>itch.io Desktop App</strong> as well as a personal <strong>API token</strong>, which must be generated once and saved in the existing <code>credentials.json</code> inside the plugin folder.
+      <strong>Einmalige Einrichtung erforderlich.</strong> Das Plugin benötigt den <strong>itch.io Desktop-Client</strong> sowie einen persönlichen <strong>API-Token</strong>, der einmalig generiert und als <code>credentials.json</code> im Plugin-Ordner hinterlegt werden muss.
     </div>
   </div>
 
@@ -238,15 +238,15 @@
     <div class="step">
       <div class="step-left"><div class="step-number">1</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Download &amp; install the itch.io Desktop App</div>
+        <div class="step-title">itch.io Desktop-Client herunterladen &amp; installieren</div>
         <div class="step-desc">
-          The plugin reads your installed games from the local database of the itch.io client.<br><br>
-          Open this URL in your regular browser (Firefox, Chrome, Edge) to download the app:<br>
-          <div class="code-block" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="copyToClipboard('https://itch.io/app', this, '✔ Link copied!')">
+          Das Plugin liest deine installierten Spiele aus der lokalen Datenbank des itch.io Clients.<br><br>
+          Öffne diese URL in deinem normalen Browser (Firefox, Chrome, Edge), um die App herunterzuladen:<br>
+          <div class="code-block" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="copyToClipboard('https://itch.io/app', this, '✔ Link kopiert!')">
             <span>https://itch.io/app</span>
-            <span style="font-size:12px; color:var(--accent); white-space:nowrap; flex-shrink:0;">📋 Copy Link</span>
+            <span style="font-size:12px; color:var(--accent); white-space:nowrap; flex-shrink:0;">📋 Link kopieren</span>
           </div>
-          Install the client and <strong>launch it once</strong> – this will create the required database.
+          Installiere den Client und <strong>starte ihn einmal</strong> – er legt dabei die benötigte Datenbank an.
         </div>
       </div>
     </div>
@@ -254,10 +254,10 @@
     <div class="step">
       <div class="step-left"><div class="step-number">2</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Log in to the itch.io client</div>
+        <div class="step-title">Im itch.io Client einloggen</div>
         <div class="step-desc">
-          Log in to the itch.io desktop client with your account.<br><br>
-          <strong>Important:</strong> The database is only created after logging in, located at:<br>
+          Melde dich im itch.io Desktop-Client mit deinem Account an.<br><br>
+          <strong>Wichtig:</strong> Erst nach dem Login existiert die Datenbank unter:<br>
           <code>%APPDATA%\itch\db\butler.db</code>
         </div>
       </div>
@@ -266,19 +266,19 @@
     <div class="step">
       <div class="step-left"><div class="step-number">3</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Generate API token</div>
+        <div class="step-title">API-Token generieren</div>
         <div class="step-desc">
-          Open this URL in your regular browser (Firefox, Chrome, Edge) – <strong>not</strong> in the GOG window:<br><br>
-          <div class="code-block" style="font-size:11px; word-break:break-all; cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="copyToClipboard('https://itch.io/user/oauth?client_id=3821cecdd58ae1a920be15f6aa479f7e&amp;scope=profile&amp;response_type=token&amp;redirect_uri=http%3A%2F%2F127.0.0.1%3A7157%2Fgogg2itchintegration', this, '✔ Link copied!')">
+          Öffne diese URL in deinem normalen Browser (Firefox, Chrome, Edge) – <strong>nicht</strong> im GOG-Fenster:<br><br>
+          <div class="code-block" style="font-size:11px; word-break:break-all; cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="copyToClipboard('https://itch.io/user/oauth?client_id=3821cecdd58ae1a920be15f6aa479f7e&amp;scope=profile&amp;response_type=token&amp;redirect_uri=http%3A%2F%2F127.0.0.1%3A7157%2Fgogg2itchintegration', this, '✔ Link kopiert!')">
             <span style="flex:1; padding-right:12px;">https://itch.io/user/oauth?client_id=3821cecdd58ae1a920be15f6aa479f7e&amp;scope=profile&amp;response_type=token&amp;redirect_uri=http%3A%2F%2F127.0.0.1%3A7157%2Fgogg2itchintegration</span>
-            <span style="font-size:12px; color:var(--accent); white-space:nowrap; flex-shrink:0;">📋 Copy Link</span>
+            <span style="font-size:12px; color:var(--accent); white-space:nowrap; flex-shrink:0;">📋 Link kopieren</span>
           </div><br>
-          Log in to itch.io and click on <strong>"Authorize GOG Galaxy Integration"</strong>.<br><br>
-          The browser will then show an error page – this is <strong>normal</strong>. Look at the <strong>address bar</strong>. It will show:<br><br>
+          Logge dich auf itch.io ein und klicke auf <strong>„Authorize GOG Galaxy Integration"</strong>.<br><br>
+          Der Browser zeigt danach eine Fehlerseite – das ist <strong>normal</strong>. Schau in die <strong>Adressleiste</strong>. Dort steht:<br><br>
           <div class="code-block">
-            http://127.0.0.1:7157/gogg2itchintegration#<span class="placeholder">access_token=YOUR_TOKEN_HERE</span>
+            http://127.0.0.1:7157/gogg2itchintegration#<span class="placeholder">access_token=DEIN_TOKEN_HIER</span>
           </div><br>
-          Copy the entire token value after the <code>=</code> sign.
+          Kopiere den kompletten Token-Wert nach dem <code>=</code> Zeichen.
         </div>
       </div>
     </div>
@@ -286,24 +286,24 @@
     <div class="step">
       <div class="step-left"><div class="step-number">4</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Edit <code>credentials.json</code></div>
+        <div class="step-title"><code>credentials.json</code> bearbeiten</div>
         <div class="step-desc">
-          Open the existing <code>credentials.json</code> file in the plugin folder using a text editor (e.g., Notepad):<br><br>
+          Öffne die bereits vorhandene Datei <code>credentials.json</code> im Plugin-Ordner mit einem Texteditor (z. B. Windows Editor):<br><br>
           <div class="fields">
             <div class="field">
-              <div class="field-label">Path</div>
+              <div class="field-label">Pfad</div>
               <div class="field-value">
-                <div class="code-block" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; margin-top:6px;" onclick="copyToClipboard('%LOCALAPPDATA%\\GOG.com\\Galaxy\\plugins\\installed\\itch_2df02142-4d8a-4a4b-9b6e-c3a0bc62f93b\\credentials.json', this, '✔ Copied!')">
+                <div class="code-block" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; margin-top:6px;" onclick="copyToClipboard('%LOCALAPPDATA%\\GOG.com\\Galaxy\\plugins\\installed\\itch_2df02142-4d8a-4a4b-9b6e-c3a0bc62f93b\\credentials.json', this, '✔ Kopiert!')">
                   <span><span class="key">%LOCALAPPDATA%</span>\GOG.com\Galaxy\plugins\installed\itch_2df02142-4d8a-4a4b-9b6e-c3a0bc62f93b\credentials.json</span>
-                  <span style="font-size:12px; color:var(--accent); white-space:nowrap; flex-shrink:0; margin-left:16px;">📋 Copy Path</span>
+                  <span style="font-size:12px; color:var(--accent); white-space:nowrap; flex-shrink:0; margin-left:16px;">📋 Pfad kopieren</span>
                 </div>
               </div>
             </div>
           </div><br>
-          Paste your copied token there and save the file:<br><br>
+          Füge deinen kopierten Token dort ein und speichere die Datei ab:<br><br>
           <div class="code-block">
             {<br>
-            &nbsp;&nbsp;<span class="key">"access_token"</span>: <span class="placeholder">"YOUR_TOKEN_HERE"</span><br>
+            &nbsp;&nbsp;<span class="key">"access_token"</span>: <span class="placeholder">"DEIN_TOKEN_HIER"</span><br>
             }
           </div>
         </div>
@@ -313,10 +313,10 @@
     <div class="step">
       <div class="step-left"><div class="step-number">5</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Start &amp; connect GOG Galaxy</div>
+        <div class="step-title">GOG Galaxy starten &amp; verbinden</div>
         <div class="step-desc">
-          Restart GOG Galaxy. Go to <strong>Settings → Integrations → itch.io</strong> and click <strong>Connect</strong>.<br><br>
-          The plugin automatically reads the token from <code>credentials.json</code> – no login window, no Cloudflare check.
+          Starte GOG Galaxy neu. Gehe zu <strong>Einstellungen → Integrationen → itch.io</strong> und klicke auf <strong>Verbinden</strong>.<br><br>
+          Das Plugin liest den Token automatisch aus <code>credentials.json</code> – kein Login-Fenster, keine Cloudflare-Prüfung.
         </div>
       </div>
     </div>
@@ -324,11 +324,11 @@
     <div class="step">
       <div class="step-left"><div class="step-number">6</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Games appear in GOG Galaxy</div>
+        <div class="step-title">Spiele erscheinen in GOG Galaxy</div>
         <div class="step-desc">
-          After successfully connecting, your <strong>purchased itch.io games</strong> will be displayed under the itch.io tab.<br><br>
-          <strong>Installed games</strong> (downloaded via the itch.io client) will additionally appear under <strong>"Installed"</strong> and can be launched directly from GOG Galaxy.<br><br>
-          The plugin automatically checks <strong>every minute</strong> to see if new games have been installed or uninstalled.
+          Nach erfolgreicher Verbindung werden deine <strong>gekauften itch.io Spiele</strong> unter dem itch.io-Tab angezeigt.<br><br>
+          <strong>Installierte Spiele</strong> (über den itch.io Client heruntergeladen) erscheinen zusätzlich unter <strong>„Installiert"</strong> und können direkt aus GOG Galaxy gestartet werden.<br><br>
+          Das Plugin prüft <strong>jede Minute</strong> automatisch ob neue Spiele installiert oder deinstalliert wurden.
         </div>
       </div>
     </div>
@@ -337,12 +337,12 @@
 
   <div class="tip" style="background:#1a0a0a; border-color:#6e1313; color:#e07b7b;">
     <span style="font-size:16px; flex-shrink:0; margin-top:1px;">⛔</span>
-    <span><strong style="color:#ff6b6b;">Token Security:</strong> Your <code style="background:#0d1117; border-color:#6e1313; color:#e07b7b;">access_token</code> grants access to your itch.io profile. <strong style="color:#ff6b6b;">Never</strong> share <code style="background:#0d1117; border-color:#6e1313; color:#e07b7b;">credentials.json</code> with others or upload it to the internet.</span>
+    <span><strong style="color:#ff6b6b;">Token-Sicherheit:</strong> Dein <code style="background:#0d1117; border-color:#6e1313; color:#e07b7b;">access_token</code> gibt Zugriff auf dein itch.io Profil. Teile die <code style="background:#0d1117; border-color:#6e1313; color:#e07b7b;">credentials.json</code> <strong style="color:#ff6b6b;">niemals</strong> mit anderen und lade sie nicht ins Internet hoch.</span>
   </div>
 
   <div class="tip" style="background:#1a1200; border-color:#6e4f00; color:#c9a227;">
     <span style="font-size:16px; flex-shrink:0; margin-top:1px;">🔄</span>
-    <span><strong style="color:#e3b341;">Token expired?</strong> If the plugin no longer connects, repeat steps 3 and 4 with a new token.</span>
+    <span><strong style="color:#e3b341;">Token abgelaufen?</strong> Falls das Plugin sich nicht mehr verbindet, wiederhole Schritt 3 und 4 mit einem neuen Token.</span>
   </div>
 
 </div>
