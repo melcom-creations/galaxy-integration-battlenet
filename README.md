@@ -46,7 +46,8 @@ The original shared `CLIENT_ID` and `CLIENT_SECRET` used by the community plugin
    | **Client Name** | `GOG Galaxy Plugin` (or any name you prefer) |
    | **Redirect URLs** | `http://friendsofgalaxy.com` |
    | **Service URL** | Check *"I do not have a service URL for this client"* |
-   | **Intended Use** | `Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.` |
+   | **Intended Use** | `Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch
+   them via the Battle.net launcher. Only used locally on my own PC.` |
 
 3. Click **Save**. You will be redirected to **Manage Your Clients**. Click your new entry to open it, then navigate to **Manage Client → Credentials**. Your **Client ID** is shown there directly. Click **Show Secret** to reveal your **Client Secret**.
 
