@@ -1,5 +1,14 @@
 # Changelog
 
+All notable changes to this plugin will be documented in this file.
+
+---
+
+## Version 2.1.8-64bit
+
+- Fixed startup path detection for bundled dependencies.
+- plugin.py now detects both 'modules' and 'Modules', preventing ModuleNotFoundError on case-sensitive systems.
+- **Improved sys.path handling:** Replaced complex fallback logic with direct, robust path resolution using `os.path.abspath()`. This ensures bundled modules are correctly loaded even with edge-case path configurations.
 
 ## Version 2.1.7-64bit
 
