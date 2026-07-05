@@ -117,13 +117,13 @@ If the plugin behaves unexpectedly after an update, resetting the local plugin d
 
 **Warcraft® III: Reign of Chaos®** and **Warcraft® III: The Frozen Throne®** appear in GOG Galaxy as **not installed**. This is intentional.
 
-Blizzard merged both classics into a single legacy build called **Warcraft III – Legacy TFT 1.29**, accessible inside the Reforged launcher via a version dropdown. Their original installer no longer creates a dedicated registry entry — it now shares the same key as Warcraft III: Reforged. Detecting them via the registry would therefore always resolve to the Reforged install path and falsely mark them as installed, which would prevent them from launching correctly.
+Blizzard merged both classics into a single legacy build called **Warcraft III - Legacy TFT 1.29**, accessible inside the Reforged launcher via a version dropdown. Their original installer no longer creates a dedicated registry entry — it now shares the same key as Warcraft III: Reforged. Detecting them via the registry would therefore always resolve to the Reforged install path and falsely mark them as installed, which would prevent them from launching correctly.
 
 Clicking **Install** in GOG Galaxy opens `wc3_classic_info.html`, a local guide that explains your two options for playing them. A German version (`wc3_classic_info_DE.html`) is also included in the plugin folder.
 
-**Route A – Standalone launchers:** Download the classic executables directly from your Blizzard account page under *Account Settings → Games & Subscriptions → Classic Games*. This requires a registered product key for both titles.
+**Route A - Standalone launchers:** Download the classic executables directly from your Blizzard account page under *Account Settings → Games & Subscriptions → Classic Games*. This requires a registered product key for both titles.
 
-**Route B – Battle.net launcher:** If you own Warcraft III: Reforged, open the Battle.net launcher, select Warcraft III, click the dropdown next to the Play button and choose **Warcraft III – Legacy TFT 1.29**.
+**Route B - Battle.net launcher:** If you own Warcraft III: Reforged, open the Battle.net launcher, select Warcraft III, click the dropdown next to the Play button and choose **Warcraft III - Legacy TFT 1.29**.
 
 > ⚠️ A valid, registered product key is required for both routes. Keys can be redeemed at [us.shop.battle.net](https://us.shop.battle.net/en-us) → Profile icon → Account Settings → Account Overview → Redeem a Code.
 
