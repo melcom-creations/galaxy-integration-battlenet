@@ -101,72 +101,15 @@ The resulting directory structure **must** look like this:
 5. Open `consts.py` and enter your personal `CLIENT_ID` and `CLIENT_SECRET` (see [Mandatory One-Time Setup](#️-mandatory-one-time-setup) above).
 6. Start GOG Galaxy.
 
-### If the plugin folder is missing
-
-If a future ZIP archive does **not** already contain the folder
-
-```text
-battlenet_ba170431-0649-482f-863b-d248592f1842
-```
-
-perform the following steps:
-
-1. Open:
-
-   ```text
-   %LOCALAPPDATA%\GOG.com\Galaxy\plugins\installed\
-   ```
-
-2. Create a new folder named exactly:
-
-   ```text
-   battlenet_ba170431-0649-482f-863b-d248592f1842
-   ```
-
-3. Extract **all files from the ZIP archive into this newly created folder**.
-
-The final directory structure must match the one shown above.
-
 ---
 
 ## 🔄 Resetting the Plugin Database (Recommended)
 
 If the plugin behaves unexpectedly after an update, resetting the local plugin database is recommended.
 
-1. Open:
-
-   ```text
-   C:\ProgramData\GOG.com\Galaxy\storage\plugins\
-   ```
-
-2. Locate all files beginning with:
-
-   ```text
-   battlenet_
-   ```
-
-   and ending with:
-
-   ```text
-   -storage.db
-   ```
-
-3. Rename each database by appending `.old` to its filename.
-
-   Example:
-
-   ```text
-   battlenet_xxxxxxxxx-storage.db
-   ```
-
-   becomes
-
-   ```text
-   battlenet_xxxxxxxxx-storage.db.old
-   ```
-
-4. Start GOG Galaxy again.
-5. Reconnect the Battle.net integration if necessary.
+1. Open `C:\ProgramData\GOG.com\Galaxy\storage\plugins\` and find the files starting with `battlenet_` and ending in `-storage.db`.
+2. Rename each by appending `.old` (e.g. `battlenet_xxxxxxxxx-storage.db` -> `battlenet_xxxxxxxxx-storage.db.old`).
+3. Start GOG Galaxy again and reconnect the Battle.net integration if necessary.
 
 ---
 
@@ -240,3 +183,4 @@ If you would like to report a bug or suggest an improvement, please use the cont
 📩 https://melcom-creations.github.io/melcom-music/contact.html
 
 Thank you for your patience and support!
+
