@@ -15,7 +15,7 @@ The original community integration has been updated to work with the current 64-
 * Regenerated protobuf database compatible with `protobuf >= 4.x` / Python 3.13
 * Guided one-time setup page (`setup.html`) displayed inside GOG Galaxy
 * Expanded game definitions including Diablo IV
-* Warcraft III classic games handled correctly — no false "installed" state, dedicated local guide included
+* Warcraft III classic games handled correctly - no false "installed" state, dedicated local guide included
 * Classic 32-bit game detection restored on 64-bit Windows
 * Instant login window (region pre-warming eliminates the startup delay)
 * Local playtime tracking with commercial rounding for all Battle.net games
@@ -29,7 +29,7 @@ The original community integration has been updated to work with the current 64-
 
 The original shared `CLIENT_ID` and `CLIENT_SECRET` used by the community plugin have been revoked by Blizzard. You must register your own free OAuth client at the Blizzard Developer Portal.
 
-**The plugin guides you through this automatically.** When `CLIENT_ID` and `CLIENT_SECRET` in `consts.py` are empty, GOG Galaxy displays the bundled `setup.html` page inside the client every time you click **Connect** — until both values have been filled in.
+**The plugin guides you through this automatically.** When `CLIENT_ID` and `CLIENT_SECRET` in `consts.py` are empty, GOG Galaxy displays the bundled `setup.html` page inside the client every time you click **Connect** - until both values have been filled in.
 
 ### How to register your OAuth client
 
@@ -63,7 +63,7 @@ The original shared `CLIENT_ID` and `CLIENT_SECRET` used by the community plugin
    CLIENT_SECRET = "your_client_secret_here"
    ```
 
-5. **Fully close and reopen GOG Galaxy.** The plugin reads `consts.py` only on startup — changes do not take effect until you restart.
+5. **Fully close and reopen GOG Galaxy.** The plugin reads `consts.py` only on startup - changes do not take effect until you restart.
 
 6. Go to **Settings → Integrations → Battle.net** and click **Connect**.
 
@@ -117,7 +117,7 @@ If the plugin behaves unexpectedly after an update, resetting the local plugin d
 
 **Warcraft® III: Reign of Chaos®** and **Warcraft® III: The Frozen Throne®** appear in GOG Galaxy as **not installed**. This is intentional.
 
-Blizzard merged both classics into a single legacy build called **Warcraft III - Legacy TFT 1.29**, accessible inside the Reforged launcher via a version dropdown. Their original installer no longer creates a dedicated registry entry — it now shares the same key as Warcraft III: Reforged. Detecting them via the registry would therefore always resolve to the Reforged install path and falsely mark them as installed, which would prevent them from launching correctly.
+Blizzard merged both classics into a single legacy build called **Warcraft III - Legacy TFT 1.29**, accessible inside the Reforged launcher via a version dropdown. Their original installer no longer creates a dedicated registry entry - it now shares the same key as Warcraft III: Reforged. Detecting them via the registry would therefore always resolve to the Reforged install path and falsely mark them as installed, which would prevent them from launching correctly.
 
 Clicking **Install** in GOG Galaxy opens `wc3_classic_info.html`, a local guide that explains your two options for playing them. A German version (`wc3_classic_info_DE.html`) is also included in the plugin folder.
 
