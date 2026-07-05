@@ -6,9 +6,21 @@ All notable changes to this plugin will be documented in this file.
 
 ## Version 2.1.8-64bit
 
+### Overview
+Maintenance release focused on robust startup dependency resolution. The plugin now resolves bundled module paths more predictably, reducing startup failures caused by folder-name casing differences.
+
+### Fixed
 - Fixed startup path detection for bundled dependencies.
 - plugin.py now detects both 'modules' and 'Modules', preventing ModuleNotFoundError on case-sensitive systems.
 - **Improved sys.path handling:** Replaced complex fallback logic with direct, robust path resolution using `os.path.abspath()`. This ensures bundled modules are correctly loaded even with edge-case path configurations.
+
+### Technical Breakdown
+
+#### 1. Case-insensitive module folder resolution
+Startup now checks common module-folder casing variants so dependency discovery does not fail when packaging uses a different capitalization.
+
+#### 2. Path normalization simplification
+Path injection logic was reduced to a direct absolute-path strategy, improving readability and lowering edge-case path handling errors.
 
 ## Version 2.1.7-64bit
 
