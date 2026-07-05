@@ -4,6 +4,20 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.9-64bit
+
+### Overview
+This release fixes the install flow for *Warcraft II: Tides of Darkness* so the GOG Galaxy Install button now hands Battle.net the correct internal game UID. After uninstalling the game in Battle.net, the plugin no longer falls back to the generic launcher open action.
+
+### Fixed
+- **Warcraft II install command used the wrong game ID:** GOG Galaxy addressed the title as `w2be`, but Battle.net's install command expected the internal UID `w2`. The plugin now rewrites only this install request so Battle.net receives the ID it actually understands.
+
+### Changed
+- **`plugin.py` – Battle.net install ID remapping:** Added a narrow helper that translates the Galaxy game ID `w2be` to Battle.net's internal install UID `w2` before calling the launcher.
+- **`plugin.py` – No broader behavior changes:** Launch and uninstall behavior for the other Battle.net titles remains unchanged.
+
+---
+
 ## Version 2.1.8-64bit
 
 ### Overview

@@ -53,6 +53,11 @@ class BNetPlugin(Plugin):
 
         self.watched_running_games = set()
         self._watched_running_games_lock = asyncio.Lock()
+
+    def _install_command_game_id(self, game_id):
+        if game_id == 'w2be':
+            return 'w2'
+        return game_id
     
     def _save_cache(self, key, data):
         self.persistent_cache[key] = json.dumps(data)
@@ -203,7 +208,7 @@ class BNetPlugin(Plugin):
         try:
             self.local_client.refresh()
             log.info(f'Installing game of id {game_id}')
-            self.local_client.install_game(game_id)
+            self.local_client.install_game(self._install_command_game_id(game_id))
         except ClientNotInstalledError as e:
             log.warning(e)
             await self.open_battlenet_browser()

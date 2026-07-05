@@ -98,7 +98,7 @@ class _Blizzard(object, metaclass=Singleton):
         'fenris': RegionalGameInfo('fenris', False),
         'w1': RegionalGameInfo('w1', True),
         'w1r': RegionalGameInfo('w1r', True),
-        'w2bn': RegionalGameInfo('w2bn', True),
+        'w2be': RegionalGameInfo('w2be', True),
         'w2r': RegionalGameInfo('w2r', True),
         'gryphon': RegionalGameInfo('gryphon', True),
         'auks': RegionalGameInfo('auks', True),
@@ -135,7 +135,7 @@ class _Blizzard(object, metaclass=Singleton):
         BlizzardGame('anbs', 'Diablo Immortal', 'ANBS'),
         BlizzardGame('w1', 'Warcraft: Orcs & Humans (Classic)', 'W1'),
         BlizzardGame('w1r', 'Warcraft I: Remastered', 'W1R'),
-        BlizzardGame('w2bn', 'Warcraft II: Battle.net Edition', 'W2BN'),
+        BlizzardGame('w2be', 'Warcraft II: Tides of Darkness', 'W2'),
         BlizzardGame('w2r', 'Warcraft II: Remastered', 'W2R'),
         BlizzardGame('gryphon', 'Warcraft Rumble', 'GRY'),
         BlizzardGame('auks', 'Call of Duty: Modern Warfare II', 'AUKS'),
@@ -160,6 +160,13 @@ class _Blizzard(object, metaclass=Singleton):
 
     def __init__(self):
         self._games = {game.uid: game for game in self.BATTLENET_GAMES + self.CLASSIC_GAMES}
+        # The local Battle.net agent registers the installed Warcraft II: Tides of Darkness
+        # (Battle.net's classic re-release, formerly marketed as "Battle.net Edition") under
+        # the config/uninstall-tag UID 'w2', while the public-facing game ID that GOG Galaxy's
+        # own catalog actually matches with proper cover art / videos is 'w2be'.
+        # Without this alias, Blizzard['w2'] raises a KeyError and the local scan discards the
+        # game as "not known blizzard game" -> it never shows up as installed.
+        self._games['w2'] = self._games['w2be']
 
     def __getitem__(self, key: str) -> BlizzardGame:
         return self._games[key]
