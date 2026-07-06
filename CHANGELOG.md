@@ -4,6 +4,20 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.10-64bit
+
+### Overview
+Documentation-only release. Corrects the OAuth client registration instructions in the setup guide and README, which suggested a client name that is not actually unique and therefore fails during registration.
+
+### Fixed
+- **Client Name suggestion caused a 500 Internal Server Error:** `setup.html` and `README.md` previously suggested using the exact name `GOG Galaxy Plugin` when registering an OAuth client at the Blizzard Developer Portal. Since client names must be globally unique across all Blizzard developer accounts, and this name has already been taken by other users of this and similar plugins, the registration form failed with a `500 Internal Server Error`. The instructions now recommend appending any distinguishing suffix, for example `GOG Galaxy Plugin - MyClient123`.
+
+### Changed
+- **`setup.html`:** Added a warning box explaining the uniqueness requirement and updated the example Client Name and the follow-up step referencing it.
+- **`README.md`:** Updated the Client Name table row and added a note explaining the uniqueness requirement.
+
+---
+
 ## Version 2.1.9-64bit
 
 ### Overview

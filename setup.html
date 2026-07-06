@@ -286,7 +286,7 @@
         <div class="fields">
           <div class="field">
             <span class="field-label">Client Name</span>
-            <span class="field-value"><code>GOG Galaxy Plugin</code> &nbsp;<span style="color:var(--muted);font-size:12px;">(or any name)</span></span>
+            <span class="field-value"><code>GOG Galaxy Plugin - MyClient123</code> &nbsp;<span style="color:var(--muted);font-size:12px;">(must be unique, see note below)</span></span>
           </div>
           <div class="field">
             <span class="field-label">Redirect URLs</span>
@@ -299,6 +299,12 @@
           <div class="field">
             <span class="field-label">Intended Use</span>
             <span class="field-value" style="font-size:12.5px;color:#8b949e;">Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.</span>
+          </div>
+        </div>
+        <div class="warning" style="margin-top:16px; margin-bottom:0;">
+          <div class="warning-icon">⚠</div>
+          <div>
+            <strong>Client Name must be unique.</strong> It has to be unique across all Blizzard developer accounts. Entering the exact name <code>GOG Galaxy Plugin</code> will usually fail with a <code>500 Internal Server Error</code>, because that name has already been taken by other users of this and similar plugins. Add any distinguishing text, for example <code>GOG Galaxy Plugin - MyClient123</code>, and the form will save immediately.
           </div>
         </div>
       </div>
@@ -316,7 +322,7 @@
           <div class="fields" style="margin-top:12px;">
             <div class="field">
               <span class="field-label">Step A</span>
-              <span class="field-value">On <strong>Manage Your Clients</strong>, click the <strong>GOG Galaxy Plugin</strong> entry to open it.</span>
+              <span class="field-value">On <strong>Manage Your Clients</strong>, click the entry with the name you just chose to open it.</span>
             </div>
             <div class="field">
               <span class="field-label">Step B</span>

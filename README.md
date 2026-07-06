@@ -43,10 +43,12 @@ The original shared `CLIENT_ID` and `CLIENT_SECRET` used by the community plugin
 
    | Field | Value |
    |---|---|
-   | **Client Name** | `GOG Galaxy Plugin` (or any name you prefer) |
+   | **Client Name** | `GOG Galaxy Plugin - MyClient123` (see note below) |
    | **Redirect URLs** | `http://friendsofgalaxy.com` |
    | **Service URL** | Check *"I do not have a service URL for this client"* |
    | **Intended Use** | `Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.` |
+
+   > **Note:** The client name must be globally unique across all Blizzard developer accounts. Entering the exact name `GOG Galaxy Plugin` will usually fail with a `500 Internal Server Error`, because that name has already been taken by other users of this and similar plugins. Add any distinguishing text to the name, for example `GOG Galaxy Plugin - MyClient123`, and the form will save immediately.
 
 3. Click **Save**. You will be redirected to **Manage Your Clients**. Click your new entry to open it, then navigate to **Manage Client → Credentials**. Your **Client ID** is shown there directly. Click **Show Secret** to reveal your **Client Secret**.
 
@@ -170,6 +172,8 @@ I want to take a moment to thank the people who kept me going during this intens
 
 Thank you both for having my back!
 
+* Thanks to GOG community member [**jmmontoro**](https://www.gog.com/u/jmmontoro) for pointing out that the Client Name suggested in the setup instructions causes a `500 Internal Server Error` during Blizzard OAuth client registration, since that name is already taken and has to be unique. Adding a distinguishing suffix, like your username, fixes it right away. Thanks for the heads-up!
+
 ---
 
 ## 🤝 Support & Feedback
@@ -183,4 +187,3 @@ If you would like to report a bug or suggest an improvement, please use the cont
 📩 https://melcom-creations.github.io/melcom-music/contact.html
 
 Thank you for your patience and support!
-
