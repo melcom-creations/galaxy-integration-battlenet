@@ -5,14 +5,18 @@ import subprocess
 import time
 from pathlib import Path
 from threading import Thread, Lock
+from typing import Any
+from importlib import import_module
 
 from consts import Platform, SYSTEM, WINDOWS_UNINSTALL_LOCATION, LS_REGISTER
 from definitions import BlizzardGame, ClassicGame, Blizzard
 from pathfinder import PathFinder
 from psutil import Process, AccessDenied
 
+winreg: Any = None
+
 if SYSTEM == Platform.WINDOWS:
-    import winreg
+    winreg = import_module('winreg')
 
 pathfinder = PathFinder(SYSTEM)
 
@@ -44,7 +48,8 @@ class InstalledGame(object):
                 raise ValueError(f"The process exe [{process.exe()}] doesn't match with the game execs: {self.execs}")
         except AccessDenied:
             if isinstance(self.info, ClassicGame):
-                if self.info.exe in process.name():
+                executable = self.info.exe
+                if executable and executable in process.name():
                     self._processes.add(process)
                 else:
                     raise ValueError(
@@ -86,6 +91,7 @@ class LocalGames():
                     install_path = winreg.QueryValueEx(game_key, game.registry_installation_key)[0]
                     if install_path.endswith('.exe'):
                         install_path = Path(install_path).parent
+                    install_path = str(install_path)
                     uninstall_path = winreg.QueryValueEx(game_key, "UninstallString")[0]
                     if os.path.exists(install_path):
                         log.debug(f"Found classic game is installed! {game.registry_path}")

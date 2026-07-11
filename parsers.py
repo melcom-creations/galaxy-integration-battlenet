@@ -1,7 +1,10 @@
 import logging as log
+from typing import Any, Callable
 
 from definitions import ProductDbInfo, ConfigGameInfo
-from product_db_pb2 import ProductDb
+import product_db_pb2
+
+ProductDb: Callable[[], Any] = getattr(product_db_pb2, 'ProductDb')
 
 
 class ConfigParser(object):
@@ -92,4 +95,3 @@ class DatabaseParser(object):
             installed = product_install.cached_product_state.base_product_state.installed
 
             self.products[ngdp_code] = ProductDbInfo(uninstall_tag, ngdp_code, install_path, version, playable, installed)
-

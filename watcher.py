@@ -19,12 +19,8 @@ class FileWatcher(object):
                 stat = os.stat(self.path)
             except FileNotFoundError:
                 pass
-            except WindowsError as e:
-                # Windows error 5 indicates access denied.
-                if e.winerror != 5:
-                    log.exception(f'Stating {self.path} has failed: {str(e)}')
             except OSError as e:
-                if e.errno != errno.EACCES:
+                if e.errno != errno.EACCES and getattr(e, 'winerror', None) != 5:
                     log.exception(f'Stating {self.path} has failed: {str(e)}')
             except Exception as e:
                 log.exception(f'Stating {self.path} has failed: {str(e)}')

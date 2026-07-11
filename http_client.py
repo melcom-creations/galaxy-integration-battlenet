@@ -7,6 +7,7 @@ import requests
 import requests.cookies
 from urllib.parse import urlparse, parse_qs
 from functools import partial
+from typing import Any, Dict, Optional
 
 from galaxy.api.errors import InvalidCredentials
 from galaxy.api.types import Authentication, NextStep
@@ -18,17 +19,37 @@ from region_helper import _found_region, guess_region
 class AuthenticatedHttpClient(object):
     def __init__(self, plugin):
         self._plugin = plugin
-        self.user_details = None
-        self._region = None
-        self.session = None
-        self.creds = None
+        self.user_details: Optional[Dict[str, Any]] = None
+        self._region: Optional[str] = None
+        self.session: Optional[requests.Session] = None
+        self.creds: Optional[Dict[str, Any]] = None
         self.timeout = 40.0
         self.attempted_to_set_battle_tag = None
-        self.auth_data = None
+        self.auth_data: Optional[WebsiteAuthData] = None
         self._oauth_state = None
 
     def is_authenticated(self):
         return self.session is not None
+
+    def _require_session(self) -> requests.Session:
+        if self.session is None:
+            raise InvalidCredentials()
+        return self.session
+
+    def _require_auth_data(self) -> WebsiteAuthData:
+        if self.auth_data is None:
+            raise InvalidCredentials()
+        return self.auth_data
+
+    def _require_user_details(self) -> Dict[str, Any]:
+        if self.user_details is None:
+            raise InvalidCredentials()
+        return self.user_details
+
+    def _require_creds(self) -> Dict[str, Any]:
+        if self.creds is None:
+            raise InvalidCredentials()
+        return self.creds
 
     async def shutdown(self):
         if self.session:
@@ -81,9 +102,10 @@ class AuthenticatedHttpClient(object):
         url = f"{self.blizzard_accounts_url}:443/oauth2/authorization/account-settings"
         
         # Request the account settings page with the stored cookies.
+        session = self._require_session()
         response = await loop.run_in_executor(
             None, 
-            partial(self.session.get, url, headers=headers, allow_redirects=True, timeout=self.timeout)
+            partial(session.get, url, headers=headers, allow_redirects=True, timeout=self.timeout)
         )
         
         # Inspect the redirect chain for the authorization code.
@@ -110,15 +132,16 @@ class AuthenticatedHttpClient(object):
         
         token_response = await loop.run_in_executor(
             None, 
-            partial(self.session.post, token_url, data=data, timeout=self.timeout)
+            partial(session.post, token_url, data=data, timeout=self.timeout)
         )
         token_response.raise_for_status()
         result = token_response.json()
         
         # Update the active session credentials after token refresh.
         new_token = result["access_token"]
-        self.auth_data.access_token = new_token
-        self.session.headers["Authorization"] = f"Bearer {new_token}"
+        auth_data = self._require_auth_data()
+        auth_data.access_token = new_token
+        session.headers["Authorization"] = f"Bearer {new_token}"
         
         # Persist the refreshed credentials in GOG Galaxy storage.
         self.refresh_credentials()
@@ -141,10 +164,10 @@ class AuthenticatedHttpClient(object):
             return True
 
     def parse_user_details(self):
-        if 'id' and 'battletag' in self.user_details:
-            return Authentication(self.user_details["id"], self.user_details["battletag"])
-        else:
+        user_details = self._require_user_details()
+        if "id" not in user_details or "battletag" not in user_details:
             raise InvalidCredentials()
+        return Authentication(user_details["id"], user_details["battletag"])
 
     def authenticate_using_login(self):
         self._oauth_state = secrets.token_hex(16)
@@ -166,13 +189,15 @@ class AuthenticatedHttpClient(object):
         return NextStep("web_session", auth_params)
 
     def parse_auth_after_setting_battletag(self):
-        self.creds["user_details_cache"] = self.user_details
+        creds = self._require_creds()
+        user_details = self._require_user_details()
+        creds["user_details_cache"] = user_details
         try:
-            battletag = self.user_details["battletag"]
+            battletag = user_details["battletag"]
         except KeyError:
             raise InvalidCredentials()
-        self._plugin.store_credentials(self.creds)
-        return Authentication(self.user_details["id"], battletag)
+        self._plugin.store_credentials(creds)
+        return Authentication(user_details["id"], battletag)
 
     def parse_cookies(self, cookies):
         if not self.region:
@@ -181,17 +206,19 @@ class AuthenticatedHttpClient(object):
         return requests.cookies.cookiejar_from_dict(new_cookies)
 
     def set_credentials(self):
-        self.creds = {"cookie_jar": pickle.dumps(self.auth_data.cookie_jar).hex(), "access_token": self.auth_data.access_token,
-                      "user_details_cache": self.user_details, "region": self.auth_data.region}
+        auth_data = self._require_auth_data()
+        self.creds = {"cookie_jar": pickle.dumps(auth_data.cookie_jar).hex(), "access_token": auth_data.access_token,
+                      "user_details_cache": self.user_details, "region": auth_data.region}
 
     def parse_battletag(self):
-        try:
-            battletag = self.user_details["battletag"]
-        except KeyError:
-            st_parameter = requests.utils.dict_from_cookiejar(
-                self.auth_data.cookie_jar)["BA-tassadar"]
+        user_details = self.user_details
+        if not user_details or "battletag" not in user_details:
+            auth_data = self._require_auth_data()
+            st_parameter = requests.utils.dict_from_cookiejar(auth_data.cookie_jar).get("BA-tassadar")
+            if not st_parameter:
+                raise InvalidCredentials()
             start_uri = f'{self.blizzard_battlenet_login_url}/flow/' \
-                            f'app.app?step=login&ST={st_parameter}&app=app&cr=true'
+                             f'app.app?step=login&ST={st_parameter}&app=app&cr=true'
             auth_params = {
                 "window_title": "Login to Battle.net",
                 "window_width": 540,
@@ -202,36 +229,44 @@ class AuthenticatedHttpClient(object):
             self.attempted_to_set_battle_tag = True
             return NextStep("web_session", auth_params)
 
-        self._plugin.store_credentials(self.creds)
-        return Authentication(self.user_details["id"], battletag)
+        creds = self._require_creds()
+        self._plugin.store_credentials(creds)
+        return Authentication(user_details["id"], user_details["battletag"])
 
     async def create_session(self):
-        self.session = requests.Session()
-        self.session.cookies = self.auth_data.cookie_jar
-        self.region = self.auth_data.region
-        self.session.max_redirects = 300
-        self.session.headers = {
-            "Authorization": f"Bearer {self.auth_data.access_token}",
+        auth_data = self._require_auth_data()
+        session = requests.Session()
+        session.cookies = auth_data.cookie_jar
+        self.region = auth_data.region
+        session.max_redirects = 300
+        session.headers.update({
+            "Authorization": f"Bearer {auth_data.access_token}",
             "User-Agent": FIREFOX_AGENT
-        }
+        })
+        self.session = session
 
     def refresh_credentials(self):
+        session = self._require_session()
+        auth_data = self._require_auth_data()
         creds = {
-            "cookie_jar": pickle.dumps(self.session.cookies).hex(),
-            "access_token": self.auth_data.access_token,
-            "region": self.auth_data.region,
+            "cookie_jar": pickle.dumps(session.cookies).hex(),
+            "access_token": auth_data.access_token,
+            "region": auth_data.region,
             "user_details_cache": self.user_details
         }
         self._plugin.store_credentials(creds)
 
     @property
-    def region(self):
-        if self._region is None:
-            self._region = guess_region(self._plugin.local_client)
-        return self._region
+    def region(self) -> str:
+        region = self._region
+        if not isinstance(region, str) or not region:
+            guessed_region = guess_region(self._plugin.local_client)
+            region = guessed_region if isinstance(guessed_region, str) and guessed_region else 'eu'
+            self._region = region
+        return region
 
     @region.setter
-    def region(self, value):
+    def region(self, value: str) -> None:
         self._region = value
 
     @property

@@ -4,6 +4,19 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.11-64bit
+
+### Fixed in Version 2.1.11-64bit
+
+- **Ownership import could remain active after a new login:** The Blizzard ownership and Classic Games endpoints can return HTTP 401 after a stored access token expires. The plugin retries with a refreshed token when cookie authorization is available; otherwise it uses its local-games fallback, allowing the ownership import to finish.
+- **Authentication state is validated before use:** Session, OAuth, cached user, and credential data are now checked at each authentication boundary, preventing incomplete login state from causing attribute or subscript errors.
+- **Local Battle.net client state is validated before use:** Launcher paths, active processes, and parsed local data are checked before launching, scanning, or updating games, while filesystem access errors are handled through one platform-neutral path.
+- **Platform-specific client detection is more robust:** macOS framework loading, process enumeration, and Windows launcher discovery now handle unavailable dependencies and incomplete process information safely.
+- **Unsupported operating systems fail explicitly:** Startup now reports that only Windows and macOS are supported instead of continuing with an incomplete platform configuration.
+- **Optional local-game data is now validated before use:** Uninstalling or launching a locally detected game no longer assumes that an uninstaller, executable, or macOS bundle identifier is present.
+
+---
+
 ## Version 2.1.10-64bit
 
 ### Overview for Version 2.1.10-64bit

@@ -9,7 +9,7 @@ from http import HTTPStatus
 
 from galaxy.api.errors import (
     AccessDenied, AuthenticationRequired,
-    BackendTimeout, BackendNotAvailable, BackendError, NetworkError, UnknownError
+    BackendTimeout, BackendNotAvailable, BackendError, InvalidCredentials, NetworkError, UnknownError
 )
 
 from consts import FIREFOX_AGENT
@@ -25,11 +25,16 @@ class BackendClient(object):
 
     async def _authenticated_request(self, method, url, data=None, json=True, headers=None, ignore_failure=False):
         """
-        Makes an authenticated request. On 401/403, raises AuthenticationRequired/AccessDenied
-        so the caller can decide how to handle it (fallback, retry, or lost_authentication).
-        Does NOT call lost_authentication() itself — that is the caller's responsibility.
+        Makes an authenticated request and retries once with a refreshed OAuth token after a 401 response.
         """
-        return await self.do_request(method, url, data, json, headers, ignore_failure)
+        try:
+            return await self.do_request(method, url, data, json, headers, ignore_failure)
+        except AuthenticationRequired:
+            try:
+                await self._authentication_client.refresh_access_token_with_cookies()
+            except InvalidCredentials:
+                raise AuthenticationRequired()
+            return await self.do_request(method, url, data, json, headers, ignore_failure)
 
     @staticmethod
     def handle_status_code(status_code):

@@ -5,6 +5,8 @@ import logging as log
 import subprocess
 from time import time
 import pathlib
+from typing import Any
+from importlib import import_module
 
 import psutil
 
@@ -12,12 +14,15 @@ from definitions import ClassicGame
 from consts import Platform, SYSTEM, AGENT_PATH
 from local_client_base import BaseLocalClient
 
+winreg: Any = None
+ctypes: Any = None
+
 if SYSTEM == Platform.WINDOWS:
-    import winreg
-    import ctypes
+    winreg = import_module('winreg')
+    ctypes = import_module('ctypes')
 elif SYSTEM == Platform.MACOS:
-    from Quartz import CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListExcludeDesktopElements
-    from AppKit import NSWorkspace
+    Quartz: Any = import_module('Quartz')
+    AppKit: Any = import_module('AppKit')
 
 
 class WinUninstaller(object):
@@ -54,12 +59,13 @@ class WinLocalClient(BaseLocalClient):
         except FileNotFoundError as e:
             log.warning('uninstaller not found' + str(e))
 
-    def _find_exe(self):
+    def _find_exe(self) -> str | None:
         shell_reg_value = self.__search_registry_for_run_cmd(*self._WIN_REG_SHELL)
         if shell_reg_value is None:
             return None
         reg = re.compile("\"(.*?)\"")  # Match any characters inside double quotes.
-        return reg.search(shell_reg_value).groups()[0]
+        match = reg.search(shell_reg_value)
+        return match.group(1) if match else None
 
     def _find_main_renderer_window(self):
         """Get Blizzard renderer window (main window, not login)
@@ -68,7 +74,7 @@ class WinLocalClient(BaseLocalClient):
                ctypes.windll.user32.FindWindowW(None, "Battle.net") or \
                ctypes.windll.user32.FindWindowW(None, "暴雪战网")
 
-    def _is_main_window_open(self):
+    def _is_main_window_open(self) -> bool:
         return bool(self._find_main_renderer_window())
 
     @property
@@ -104,12 +110,15 @@ class WinLocalClient(BaseLocalClient):
         # Hide Battle.net after WM_CLOSE so it does not remain visible.
         await self.prevent_battlenet_from_showing()
 
-    def _check_for_game_process(self, game):
+    def _check_for_game_process(self, game) -> bool:
         try:
             if not self.is_running():
                 return False
-            with self._process.oneshot():
-                for proc in self._process.children():
+            process = self._process
+            if process is None:
+                return False
+            with process.oneshot():
+                for proc in process.children():
                     if proc.exe() in game.execs:
                         log.debug(f'Process has been found')
                         return True
@@ -117,6 +126,7 @@ class WinLocalClient(BaseLocalClient):
             pass
         except Exception as e:
             log.error(f'Error while waiting for process to be spawn: {repr(e)}')
+        return False
 
     def __search_registry_for_run_cmd(self, *args):
         """
@@ -144,12 +154,15 @@ class MacLocalClient(BaseLocalClient):
         self.uninstaller = None
         self._exe = self._find_exe()
 
-    def _find_exe(self):
+    def _find_exe(self) -> str:
         return self._PATH
 
-    def _is_main_window_open(self):
+    def _is_main_window_open(self) -> bool:
         """Main window, not login one"""
-        windows = CGWindowListCopyWindowInfo(kCGWindowListExcludeDesktopElements, kCGNullWindowID)
+        windows = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListExcludeDesktopElements,
+            Quartz.kCGNullWindowID,
+        )
         for window in windows:
             try:
                 if 'Blizzard Battle.net' == window['kCGWindowName']:
@@ -160,7 +173,7 @@ class MacLocalClient(BaseLocalClient):
         return False
 
     def close_window(self):
-        workspace = NSWorkspace.sharedWorkspace()
+        workspace = AppKit.NSWorkspace.sharedWorkspace()
         activeApps = workspace.runningApplications()
 
         for app in activeApps:
@@ -171,7 +184,7 @@ class MacLocalClient(BaseLocalClient):
         client_popup_wait_time = 5
         check_frequency_delay = 0.02
 
-        workspace = NSWorkspace.sharedWorkspace()
+        workspace = AppKit.NSWorkspace.sharedWorkspace()
         activeApps = workspace.runningApplications()
 
         end_time = time() + client_popup_wait_time
@@ -188,13 +201,16 @@ class MacLocalClient(BaseLocalClient):
 
     @property
     def is_installed(self):
-        return os.path.exists(self._exe)
+        return bool(self._exe and os.path.exists(self._exe))
 
-    def _check_for_game_process(self, game):
+    def _check_for_game_process(self, game) -> bool:
         """Check over all processes because on macOS games are spawn not as client children"""
-        for proc in psutil.process_iter(attrs=['exe'], ad_value=''):
-            if proc.info['exe'] in game.execs:
-                return True
+        for proc in psutil.process_iter():
+            try:
+                if proc.exe() in game.execs:
+                    return True
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                continue
         return False
 
 

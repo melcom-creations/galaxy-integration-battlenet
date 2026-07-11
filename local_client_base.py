@@ -5,7 +5,7 @@ import subprocess
 import abc
 from time import time
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from process import ProcessProvider
 from consts import Platform, SYSTEM, CONFIG_PATH, AGENT_PATH
@@ -43,44 +43,52 @@ class BaseLocalClient(abc.ABC):
         self._update_statuses = update_statuses
         self._process_provider = ProcessProvider()
         self._process = None
-        self._exe = self._find_exe()
+        self._exe: Optional[str] = self._find_exe()
         self._games_provider = LocalGames()
 
-        self.database_parser = None
+        self.database_parser: Optional[DatabaseParser] = None
         self.config_parser = ConfigParser(None)
         self.uninstaller = None
         self.installed_games_cache = self.get_installed_games()
 
         self.classic_games_parsing_task = None
 
-    @abc.abstractproperty
-    def is_installed(self):
-        pass
+    @property
+    @abc.abstractmethod
+    def is_installed(self) -> bool:
+        raise NotImplementedError
 
     @abc.abstractmethod
-    def _find_exe(self):
+    def _find_exe(self) -> Optional[str]:
         """Returns Battlenet main executable"""
-        pass
+        raise NotImplementedError
 
     @abc.abstractmethod
-    def _is_main_window_open(self):
+    def _is_main_window_open(self) -> bool:
         """Return True if Blizzard main renderer window is present (main window, not login)"""
-        pass
+        raise NotImplementedError
 
     @abc.abstractmethod
-    def _check_for_game_process(self, game):
+    def _check_for_game_process(self, game: InstalledGame) -> bool:
         """Returns True if process matching game if found"""
-        pass
+        raise NotImplementedError
 
     def refresh(self):
         self._exe = self._find_exe()
 
+    def _require_executable(self) -> str:
+        if not self._exe:
+            raise ClientNotInstalledError()
+        return self._exe
+
     def is_running(self):
         if self._process and self._process.is_running():
             return True
-        else:
-            self._process = self._process_provider.get_process_by_path(self._exe)
-            return bool(self._process)
+        executable = self._exe
+        if not executable:
+            return False
+        self._process = self._process_provider.get_process_by_path(executable)
+        return bool(self._process)
 
     async def _prepare_to_launch(self, uid, timeout):
         """launches the client and waits till proper renderer is opened
@@ -90,7 +98,8 @@ class BaseLocalClient(abc.ABC):
         if self.is_running() and self._is_main_window_open():
             return
 
-        subprocess.Popen([self._exe, f'--game={uid}'], cwd=os.path.dirname(self._exe))
+        executable = self._require_executable()
+        subprocess.Popen([executable, f'--game={uid}'], cwd=os.path.dirname(executable))
         while time() < timeout:
             if self._is_main_window_open():
                 log.debug('Preparing to launch ended {:.2f}s before timeout'.format(timeout - time()))
@@ -101,26 +110,31 @@ class BaseLocalClient(abc.ABC):
     def install_game(self, uid: str):
         if not self.is_installed:
             raise ClientNotInstalledError()
+        executable = self._require_executable()
         args = [
-            self._exe,
+            executable,
             "--install",
             f"--game={uid}"
         ]
-        subprocess.Popen(args, cwd=os.path.dirname(self._exe))
+        subprocess.Popen(args, cwd=os.path.dirname(executable))
 
-    def open_battlenet(self, uid: str=None):
-        if not self.is_installed or not self._exe:
+    def open_battlenet(self, uid: Optional[str] = None):
+        if not self.is_installed:
             raise ClientNotInstalledError()
+        executable = self._require_executable()
         if uid is not None:
-            args = (self._exe, f"--game={uid}")
+            args = (executable, f"--game={uid}")
         else:
-            args = (self._exe)
-        subprocess.Popen(args, cwd=os.path.dirname(self._exe))
+            args = (executable,)
+        subprocess.Popen(args, cwd=os.path.dirname(executable))
 
     async def wait_until_game_stops(self, game: InstalledGame):
         if not self.is_running():
             return 'Client not running'
-        for child in self._process.children():
+        process = self._process
+        if process is None:
+            return 'Client process not found'
+        for child in process.children():
             if child.exe() in game.execs:
                 game_process = child
                 break
@@ -144,8 +158,9 @@ class BaseLocalClient(abc.ABC):
             subprocess.Popen(cmd, shell=True)
         else:
             await self._prepare_to_launch(game.info.uid, timeout)
-            cmd = f'"{self._exe}" --exec="launch {game.info.family}"'
-            subprocess.Popen(cmd, cwd=os.path.dirname(self._exe), shell=True)
+            executable = self._require_executable()
+            cmd = f'"{executable}" --exec="launch {game.info.family}"'
+            subprocess.Popen(cmd, cwd=os.path.dirname(executable), shell=True)
         log.info(f"Launch game and start waiting for game process")
         while time() < timeout:
             if self._check_for_game_process(game):
@@ -160,23 +175,17 @@ class BaseLocalClient(abc.ABC):
         except FileNotFoundError as e:
             log.warning(f"product.db not found: {repr(e)}")
             return False
-        except WindowsError as e:
-            # Windows error 5 indicates access denied.
-            if e.winerror == 5:
-                log.warning(f"product.db not accessible: {repr(e)}")
-                self.config_parser = ConfigParser(None)
-                return False
-            else:
-                raise ()
         except OSError as e:
-            if e.errno == errno.EACCES:
+            if e.errno == errno.EACCES or getattr(e, 'winerror', None) == 5:
                 log.warning(f"product.db not accessible: {repr(e)}")
                 self.config_parser = ConfigParser(None)
                 return False
-            else:
-                raise ()
+            raise
         else:
-            if self.is_installed != self.database_parser.battlenet_present:
+            database_parser = self.database_parser
+            if database_parser is None:
+                return False
+            if self.is_installed != database_parser.battlenet_present:
                 self.refresh()
 
         try:
@@ -186,21 +195,12 @@ class BaseLocalClient(abc.ABC):
             log.warning(f"config file not found: {repr(e)}")
             self.config_parser = ConfigParser(None)
             return False
-        except WindowsError as e:
-            # Windows error 5 indicates access denied.
-            if e.winerror == 5:
-                log.warning(f"config file not accessible: {repr(e)}")
-                self.config_parser = ConfigParser(None)
-                return False
-            else:
-                raise e
         except OSError as e:
-            if e.errno == errno.EACCES:
+            if e.errno == errno.EACCES or getattr(e, 'winerror', None) == 5:
                 log.warning(f"config file not accessible: {repr(e)}")
                 self.config_parser = ConfigParser(None)
                 return False
-            else:
-                raise e
+            raise
         return True
 
     async def register_local_data_watcher(self):
@@ -214,12 +214,15 @@ class BaseLocalClient(abc.ABC):
 
                 if not self._load_local_files():
                     continue
-                if self.is_installed != self.database_parser.battlenet_present:
+                database_parser = self.database_parser
+                if database_parser is None:
+                    continue
+                if self.is_installed != database_parser.battlenet_present:
                     self.refresh()
 
                 await asyncio.to_thread(
                     self._games_provider.parse_local_battlenet_games,
-                    self.database_parser.games,
+                    database_parser.games,
                     self.config_parser.games,
                 )
                 refreshed_games = self.get_installed_games()

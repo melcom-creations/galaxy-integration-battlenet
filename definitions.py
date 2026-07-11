@@ -1,19 +1,19 @@
 import dataclasses as dc
 import json
-import requests
-from typing import Optional, Dict, List
+from requests.cookies import RequestsCookieJar
+from typing import Any, Optional, Dict, List
 
 
 class DataclassJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if dc.is_dataclass(o):
+    def default(self, o: Any) -> Any:
+        if dc.is_dataclass(o) and not isinstance(o, type):
             return dc.asdict(o)
         return super().default(o)
 
 
 @dc.dataclass
 class WebsiteAuthData(object):
-    cookie_jar: requests.cookies.RequestsCookieJar
+    cookie_jar: RequestsCookieJar
     access_token: str
     region: str
 

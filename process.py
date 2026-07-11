@@ -9,27 +9,35 @@ class ProcessProvider(object):
         pass
 
     def get_process_by_path(self, path):
-        for p in psutil.process_iter(attrs=['exe'], ad_value=''):
-            if p.info['exe'] == path:
-                try:
-                    if p.parent() and p.parent().exe() == path:
-                        return p.parent()
-                    return p
-                except (psutil.AccessDenied, psutil.NoSuchProcess):
-                    pass
+        for process in psutil.process_iter():
+            try:
+                if process.exe() != path:
+                    continue
+                parent = process.parent()
+                if parent and parent.exe() == path:
+                    return parent
+                return process
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                continue
 
     def update_games_processes(self, games: Iterable[InstalledGame]) -> Set[str]:
         """Matches currently running processes with the game executables and assigns those processes to games
         :returns     list of currently running games blizzard ids
         """
         running_games = set()
-        for proc in psutil.process_iter(attrs=['exe', 'name'], ad_value=''):
+        for proc in psutil.process_iter():
+            try:
+                executable_path = proc.exe()
+                process_name = proc.name()
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                continue
             for game in games:
-                if proc.info['exe'] in game.execs:
+                if executable_path in game.execs:
                     game.add_process(proc)
                     running_games.add(game.info.uid)
                 if isinstance(game.info, ClassicGame):
-                    if game.info.exe in proc.info['name']:
+                    executable = game.info.exe
+                    if executable and executable in process_name:
                         game.add_process(proc)
                         running_games.add(game.info.uid)
 

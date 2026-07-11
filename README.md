@@ -41,12 +41,12 @@ The original shared `CLIENT_ID` and `CLIENT_SECRET` used by the community plugin
 
 2. Fill in the form with these values:
 
-   | Field | Value |
+   |Field|Value|
    |---|---|
-   | **Client Name** | `GOG Galaxy Plugin - MyClient123` (see note below) |
-   | **Redirect URLs** | `http://friendsofgalaxy.com` |
-   | **Service URL** | Check *"I do not have a service URL for this client"* |
-   | **Intended Use** | `Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.` |
+   |**Client Name**|`GOG Galaxy Plugin - MyClient123` (see note below)|
+   |**Redirect URLs**|`http://friendsofgalaxy.com`|
+   |**Service URL**|Check *"I do not have a service URL for this client"*|
+   |**Intended Use**|`Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.`|
 
    > **Note:** The client name must be globally unique across all Blizzard developer accounts. Entering the exact name `GOG Galaxy Plugin` will usually fail with a `500 Internal Server Error`, because that name has already been taken by other users of this and similar plugins. Add any distinguishing text to the name, for example `GOG Galaxy Plugin - MyClient123`, and the form will save immediately.
 
@@ -100,8 +100,8 @@ The resulting directory structure **must** look like this:
     └── ...
 ```
 
-5. Open `consts.py` and enter your personal `CLIENT_ID` and `CLIENT_SECRET` (see [Mandatory One-Time Setup](#️-mandatory-one-time-setup) above).
-6. Start GOG Galaxy.
+1. Open `consts.py` and enter your personal `CLIENT_ID` and `CLIENT_SECRET` (see [Mandatory One-Time Setup](#️-mandatory-one-time-setup) above).
+2. Start GOG Galaxy.
 
 ---
 
@@ -112,6 +112,23 @@ If the plugin behaves unexpectedly after an update, resetting the local plugin d
 1. Open `C:\ProgramData\GOG.com\Galaxy\storage\plugins\` and find the files starting with `battlenet_` and ending in `-storage.db`.
 2. Rename each by appending `.old` (e.g. `battlenet_xxxxxxxxx-storage.db` -> `battlenet_xxxxxxxxx-storage.db.old`).
 3. Start GOG Galaxy again and reconnect the Battle.net integration if necessary.
+
+### 🚀 First Start and Initial Sync (Important)
+
+For a clean first run after installing or updating the plugin:
+
+1. Close GOG Galaxy.
+2. Open this folder:
+
+```text
+C:\ProgramData\GOG.com\Galaxy\storage\plugins\
+```
+
+1. If a `battlenet_...-storage.db` file exists there, delete it.
+2. Start GOG Galaxy.
+3. Start the Battle.net desktop app and keep it open.
+4. In GOG Galaxy, open the account menu (top-right) and click **Sync integrations**.
+5. Wait until sync finishes.
 
 ---
 
@@ -153,7 +170,7 @@ GOG Galaxy scans every folder inside this directory during startup. Duplicate pl
 
 **Original Community Integration**
 FriendsOfGalaxy, bartok765, and contributors
-https://github.com/FriendsOfGalaxy/galaxy-integration-blizzard
+[Friends of Galaxy Battle.net integration](https://github.com/FriendsOfGalaxy/galaxy-integration-blizzard)
 
 **64-bit Port, Maintenance and Improvements**
 melcom
@@ -184,6 +201,6 @@ This project is developed and maintained by one person. Response times may vary,
 
 If you would like to report a bug or suggest an improvement, please use the contact form on my website:
 
-📩 https://melcom-creations.github.io/melcom-music/contact.html
+📩 [Contact form](https://melcom-creations.github.io/melcom-music/contact.html)
 
 Thank you for your patience and support!

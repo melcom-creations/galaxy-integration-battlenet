@@ -125,7 +125,8 @@ class BNetPlugin(Plugin):
                 time_key = f"time_{id_to_watch}"
                 last_key = f"last_{id_to_watch}"
                 
-                current_total = int(self._load_cache(time_key, 0))
+                cached_total = self._load_cache(time_key, 0)
+                current_total = int(cached_total) if cached_total is not None else 0
                 new_total = current_total + duration_mins
                 end_timestamp = int(time.time())
                 
@@ -203,6 +204,9 @@ class BNetPlugin(Plugin):
                 platform = 'windows'
             elif SYSTEM == pf.MACOS:
                 platform = 'macos'
+            else:
+                log.warning('Classic game installation is not supported on this platform')
+                return
             webbrowser.open(f"https://www.blizzard.com/download/confirmation?platform={platform}&locale=enUS&version=LIVE&id={game_id}")
             return
         try:
@@ -246,13 +250,13 @@ class BNetPlugin(Plugin):
                     self.update_local_game_status(LocalGame(game_id, LocalGameState.None_))
                     return
 
-                if not isinstance(installed_game.info, ClassicGame):
-                    if self.local_client.uninstaller is None:
-                        raise FileNotFoundError('Uninstaller not found')
+                uninstaller = self.local_client.uninstaller
+                if uninstaller is None:
+                    raise FileNotFoundError('Uninstaller not found')
 
                 uninstall_tag = installed_game.uninstall_tag
                 client_lang = self.local_client.config_parser.locale_language
-                self.local_client.uninstaller.uninstall_game(installed_game, uninstall_tag, client_lang)
+                uninstaller.uninstall_game(installed_game, uninstall_tag, client_lang)
 
             except Exception as e:
                 log.exception(f'Uninstalling game {game_id} failed: {e}')
@@ -265,12 +269,18 @@ class BNetPlugin(Plugin):
                 return await self.install_game(game_id)
 
             if isinstance(game.info, ClassicGame):
-                log.info(f'Launching game of id: {game_id}, {game} at path {os.path.join(game.install_path, game.info.exe)}')
+                executable = game.info.exe
+                if not executable:
+                    log.error(f'Classic game {game_id} has no executable configured')
+                    return
+                executable_path = os.path.join(game.install_path, executable)
+                log.info(f'Launching game of id: {game_id}, {game} at path {executable_path}')
                 if SYSTEM == pf.WINDOWS:
-                    subprocess.Popen(os.path.join(game.install_path, game.info.exe))
+                    subprocess.Popen(executable_path)
                 elif SYSTEM == pf.MACOS:
                     if not game.info.bundle_id:
-                        log.warning(f"{game.name} has no bundle id, help by providing us bundle id of this game")
+                        log.warning(f"{game.info.name} has no bundle id, help by providing us bundle id of this game")
+                        return
                     subprocess.Popen(['open', '-b', game.info.bundle_id])
 
                 self.update_local_game_status(LocalGame(game_id, LocalGameState.Installed | LocalGameState.Running))
@@ -392,8 +402,8 @@ class BNetPlugin(Plugin):
                 games[Blizzard['wow_classic']] = wow_license
             return games
 
-        def _parse_classic_games(classic_games: dict) -> Dict[ClassicGame, LicenseType]:
-            games = {}
+        def _parse_classic_games(classic_games: dict) -> Dict[BlizzardGame, LicenseType]:
+            games: Dict[BlizzardGame, LicenseType] = {}
             for classic_game in classic_games["classicGames"]:
                 sanitized_name = classic_game["localizedGameName"].replace(u'\xa0', ' ')
                 for cg in Blizzard.CLASSIC_GAMES:
@@ -570,7 +580,10 @@ class BNetPlugin(Plugin):
         return achievements
 
     async def _get_sc2_achievements(self):
-        account_data = await self.backend_client.get_sc2_player_data(self.authentication_client.user_details["id"])
+        user_details = self.authentication_client.user_details
+        if user_details is None:
+            raise AuthenticationRequired()
+        account_data = await self.backend_client.get_sc2_player_data(user_details["id"])
 
         # The SC2 API returns a single account for this flow.
         assert len(account_data) == 1
