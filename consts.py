@@ -13,8 +13,6 @@ if sys.platform == 'win32':
     SYSTEM = Platform.WINDOWS
 elif sys.platform == 'darwin':
     SYSTEM = Platform.MACOS
-else:
-    raise RuntimeError('Battle.net plugin supports Windows and macOS only')
 
 if SYSTEM == Platform.WINDOWS:
     AGENT_PATH = os.path.expandvars(r'%ALLUSERSPROFILE%\Battle.net\Agent')
