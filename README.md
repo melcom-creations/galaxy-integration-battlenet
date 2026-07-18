@@ -1,6 +1,6 @@
 # Battle.net Integration Plugin for GOG Galaxy 2.1+ (64-bit)
 
-This repository contains the Battle.net integration plugin for the native 64-bit version of GOG Galaxy 2.1+. It is based on the original community integration and has been updated for the current GOG Galaxy client and Python 3.13. The project includes a restored OAuth authentication flow, an updated game database, compatibility fixes, stability improvements, and ongoing maintenance.
+This plugin imports your Battle.net library into GOG Galaxy 2.1+ 64-bit. Based on the original community integration, it has been updated for the current GOG Galaxy client and Python 3.13, with restored OAuth authentication and current game definitions.
 
 ---
 
@@ -16,7 +16,6 @@ This repository contains the Battle.net integration plugin for the native 64-bit
 * Supports current game definitions, including Diablo IV
 * Restores detection of classic 32-bit games on 64-bit Windows
 * Handles Warcraft III classic titles without falsely marking them as installed
-* Supports GOG Galaxy 2.1+ 64-bit and Python 3.13
 
 ---
 
@@ -24,7 +23,7 @@ This repository contains the Battle.net integration plugin for the native 64-bit
 
 ### Automatic Installation with Plugin Updater (Recommended)
 
-The easiest way to install the Battle.net integration is with the [melcom GOG Galaxy Plugin Updater](https://github.com/melcom-creations/galaxy-integrations-64bit/tree/main/tools/melcom-galaxy_plugin_updater). The updater detects existing integrations and can install any supported melcom plugins that are still missing.
+Use the [melcom GOG Galaxy Plugin Updater](https://github.com/melcom-creations/galaxy-integrations-64bit/tree/main/tools/melcom-galaxy_plugin_updater) to install or update the integration automatically.
 
 1. Download and extract the Plugin Updater.
 2. Double-click `update-plugins.bat`.
@@ -35,7 +34,7 @@ When updating an existing Battle.net installation, the updater detects personal 
 
 ### Manual Installation
 
-1. Close GOG Galaxy completely and make sure it is no longer running in the system tray.
+1. Close GOG Galaxy completely, including the system tray application.
 2. Download the latest release package from this repository.
 3. Extract the ZIP archive directly into:
 
@@ -147,7 +146,7 @@ A valid registered product key is required for both routes. Existing keys can be
 
 ## 🔄 Resetting the Plugin Database (Troubleshooting)
 
-Reset the local plugin database only if the integration behaves unexpectedly or synchronization problems continue after restarting both applications.
+Reset the local plugin database if synchronization problems continue after restarting both applications.
 
 1. Close GOG Galaxy completely.
 2. Open `C:\ProgramData\GOG.com\Galaxy\storage\plugins\`.
@@ -157,9 +156,7 @@ Reset the local plugin database only if the integration behaves unexpectedly or 
    `battlenet_xxxxxxxxx-storage.db` -> `battlenet_xxxxxxxxx-storage.db.old`
 
 5. Start the Battle.net desktop app and keep it open.
-6. Start GOG Galaxy and reconnect the Battle.net integration if necessary.
-7. Open the account menu in the top-right corner and select **Sync integrations**.
-8. Wait until the synchronization has finished.
+6. Start GOG Galaxy, reconnect the integration if necessary, select **Sync integrations** from the account menu, and wait for synchronization to finish.
 
 ---
 
@@ -170,6 +167,37 @@ Do **not** place backup copies of this plugin inside the `plugins\installed` dir
 GOG Galaxy scans every folder inside this directory during startup. Duplicate plugin folders can lead to GUID conflicts or cause Galaxy to load an outdated version of the plugin.
 
 Never share `consts.py` with another person. This file can contain your personal Blizzard OAuth credentials.
+
+---
+
+## 🛠️ What to Do If the Plugin Has Problems
+
+If the database reset above does not resolve the problem, create a clean session with fresh diagnostic files before contacting me. The reset procedure preserves the previous database as a `.old` file; the steps below remove the active database so the issue can be reproduced from a clean state.
+
+1. Close GOG Galaxy completely, including the system tray application.
+2. Open the following directory and delete the existing log files:
+
+   ```text
+   %ProgramData%\GOG.com\Galaxy\logs
+   ```
+
+3. Open the plugin storage directory:
+
+   ```text
+   C:\ProgramData\GOG.com\Galaxy\storage\plugins
+   ```
+
+   Delete only the active Battle.net database file starting with `battlenet_` and ending in `-storage.db`. Do not delete database files belonging to other integrations. If you are unsure which file is correct, do not delete anything from this directory.
+4. Start the Battle.net desktop app and keep it open. Start GOG Galaxy, reproduce the problem, and then close GOG Galaxy completely so the new log is fully written.
+5. Return to the logs directory and locate the newly created Battle.net plugin log:
+
+   ```text
+   plugin-battlenet-ba170431-0649-482f-863b-d248592f1842.log
+   ```
+
+Send only this log file, not the entire logs folder. Include the exact steps taken, the expected and actual result, and whether the problem can be reproduced.
+
+Without a fresh plugin log and a detailed description, I cannot reliably determine what is causing the problem. Once everything is ready, continue with [Support & Feedback](#-support--feedback) for contact options.
 
 ---
 
@@ -202,12 +230,12 @@ Thank you all for having my back!
 
 ## 🤝 Support & Feedback
 
-This project is developed and maintained by one person. Response times may vary, especially during periods when health-related limitations reduce available development time.
+**GitHub Issues are intentionally disabled.** Health-related limitations prevent me from reliably managing separate issue trackers across all of my plugin repositories.
 
-**GitHub Issues are intentionally disabled.**
+Before contacting me, follow **What to Do If the Plugin Has Problems** and prepare a fresh Battle.net plugin log with a detailed description.
 
-If you would like to report a bug or suggest an improvement, please use the contact form on my website:
+* **GOG:** Send me a message or add me as a friend through my [GOG profile](https://www.gog.com/u/melcom).
+* **Email:** `melcom @ gmx.net`
+* **Discord:** `.melcom` - the leading dot is part of the username. You can send me a message or add me as a friend.
 
-📩 [Contact form](https://melcom-creations.github.io/melcom-music/contact.html)
-
-Thank you for your patience and support!
+Logs can be attached directly or shared through Dropbox or OneDrive. Response times may vary depending on my health and available development time. Thank you for your understanding.
