@@ -58,7 +58,7 @@ The resulting directory structure must look like this:
     └── ...
 ```
 
-4. Complete the mandatory OAuth setup below.
+**Next step:** Complete the mandatory OAuth setup below.
 
 > [!IMPORTANT]
 > Do not place backup copies of this plugin inside the `plugins\installed` directory. GOG Galaxy scans every folder inside this directory during startup, so duplicate plugin folders can cause GUID conflicts or load an outdated version.
@@ -93,16 +93,16 @@ When `CLIENT_ID` and `CLIENT_SECRET` in `consts.py` are empty, GOG Galaxy displa
 5. Copy the displayed **Client ID** and reveal the **Client Secret**.
 6. Open `consts.py` in:
 
-```text
-%localappdata%\GOG.com\Galaxy\plugins\installed\battlenet_ba170431-0649-482f-863b-d248592f1842\
-```
+   ```text
+   %localappdata%\GOG.com\Galaxy\plugins\installed\battlenet_ba170431-0649-482f-863b-d248592f1842\
+   ```
 
 7. Replace the two placeholder values:
 
-```python
-CLIENT_ID = "your_client_id_here"
-CLIENT_SECRET = "your_client_secret_here"
-```
+   ```python
+   CLIENT_ID = "your_client_id_here"
+   CLIENT_SECRET = "your_client_secret_here"
+   ```
 
 8. Save `consts.py`.
 9. Fully close and reopen GOG Galaxy because the plugin reads this file only during startup.
