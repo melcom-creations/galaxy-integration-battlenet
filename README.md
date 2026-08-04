@@ -220,6 +220,8 @@ I want to take a moment to thank the people who kept me going during this intens
 
 * Thanks to GOG community member [**jmmontoro**](https://www.gog.com/u/jmmontoro) for pointing out that the suggested client name can cause a `500 Internal Server Error` during Blizzard OAuth registration because every client name must be unique. Adding a personal suffix, such as your username, resolves the problem.
 
+* Thanks to GOG community member [**MacStew**](https://www.gog.com/u/MacStew) for reporting that Diablo IV could no longer be launched through GOG Galaxy after Battle.net stopped accepting the previous game family identifier. His report led to the launch fix in Version 2.1.12-64bit.
+
 Thank you all for having my back!
 
 ---

@@ -141,7 +141,7 @@ class _Blizzard(object, metaclass=Singleton):
         BlizzardGame('auks', 'Call of Duty: Modern Warfare II', 'AUKS'),
         BlizzardGame('coop', 'Call of Duty: Modern Warfare III', 'COOP'),
         BlizzardGame('spot', 'Call of Duty: Black Ops 6', 'SPOT'),
-        BlizzardGame('fenris', 'Diablo IV', 'D4')
+        BlizzardGame('fenris', 'Diablo IV', 'Fen')
     ]
     CLASSIC_GAMES = [
         ClassicGame('d1', 'Diablo', 'Diablo', 'Diablo', 'InstallLocation', 'Diablo.exe', 'com.blizzard.diablo'),

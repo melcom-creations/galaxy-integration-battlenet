@@ -4,6 +4,22 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.12-64bit
+
+### Overview for Version 2.1.12-64bit
+
+Restores launching Diablo IV from GOG Galaxy after a Battle.net client change stopped accepting the previous game family identifier.
+
+### Fixed in Version 2.1.12-64bit
+
+- **Diablo IV no longer started from GOG Galaxy:** Battle.net now identifies the Diablo IV game family as `Fen`. The plugin previously sent the obsolete `D4` family identifier, which Battle.net accepted without launching the game. The launch command now uses the current family identifier.
+
+### Special Thanks for Version 2.1.12-64bit
+
+Special thanks to GOG community member **[MacStew](https://www.gog.com/u/MacStew)** for reporting that Diablo IV could no longer be launched through GOG Galaxy. His report led to the updated Battle.net game family identifier used by this fix.
+
+---
+
 ## Version 2.1.11-64bit
 
 ### Fixed in Version 2.1.11-64bit
