@@ -4,6 +4,30 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.13-64bit
+
+### Overview for Version 2.1.13-64bit
+
+Moves personal Blizzard OAuth configuration out of the plugin folder and lets users enter it directly in the guided GOG Galaxy setup window.
+
+### Added in Version 2.1.13-64bit
+
+- **Direct credential setup:** The setup window now accepts the Blizzard Client ID and Client Secret and continues directly to the normal Battle.net login. Editing `consts.py` and restarting Galaxy are no longer required.
+- **External OAuth configuration:** The first **Connect** action creates `%LOCALAPPDATA%\melcom-creations\GOG Galaxy Integrations\Battle.net\oauth.json` with a credential-free setup marker. **Save and Continue** atomically replaces it with the completed OAuth configuration instead of embedding personal values in plugin code.
+- **Protected local storage:** On Windows, the credential payload is encrypted with DPAPI for the current Windows user before it is written to disk.
+
+### Fixed in Version 2.1.13-64bit
+
+- **Setup submission did not finish inside Galaxy:** The form previously redirected to an external Blizzard page that Galaxy did not recognize as the authentication endpoint. Although the plugin captured each submission, Galaxy never called the completion handler and no configuration file was written. The setup now uses the proven local `/complete` callback pattern with an exact loopback URL, allowing Galaxy to continue immediately to the Battle.net login.
+
+### Changed in Version 2.1.13-64bit
+
+- **Update-safe credentials:** Replacing or updating the plugin folder no longer overwrites personal Blizzard OAuth configuration.
+- **Credential-free plugin files:** `consts.py` now contains only non-sensitive platform constants. The Client ID and Client Secret are no longer stored anywhere inside the plugin directory.
+- **Setup documentation:** `README.md` and `setup.html` now describe the automatic form-based workflow, external storage location, DPAPI protection, and Disconnect behavior.
+
+---
+
 ## Version 2.1.12-64bit
 
 ### Overview for Version 2.1.12-64bit
