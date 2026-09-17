@@ -9,7 +9,8 @@ from typing import Any
 from importlib import import_module
 
 from consts import Platform, SYSTEM, WINDOWS_UNINSTALL_LOCATION, LS_REGISTER
-from definitions import BlizzardGame, ClassicGame, Blizzard
+from definitions import BlizzardGame, ClassicGame, WoWVariantGame, Blizzard
+from discovery import discover_game
 from pathfinder import PathFinder
 from psutil import Process, AccessDenied
 
@@ -32,7 +33,29 @@ class InstalledGame(object):
         self.playable = playable
         self.installed = installed
 
-        self.execs = pathfinder.find_executables(self.install_path)
+        variant = info
+        if info.uid == 'wow_classic' and SYSTEM == Platform.WINDOWS:
+            variant = WoWVariantGame(info.uid, info.name, info.family,
+                                     'wow_classic', '_classic_', 'WowClassic.exe')
+        if isinstance(variant, WoWVariantGame):
+            variant_path = Path(install_path) / variant.subdirectory
+            executable = variant_path / variant.executable
+            if not executable.is_file():
+                raise FileNotFoundError(f'WoW variant executable missing: {executable}')
+            with (variant_path / '.flavor.info').open('r', encoding='utf-8-sig') as stream:
+                flavor = stream.read(4096).splitlines()
+            if flavor != ['Product Flavor!STRING:0', variant.product_code]:
+                raise ValueError(f'WoW variant flavor does not match {variant.product_code}')
+            # The launcher, crash reporter and other WoW variants are not this game.
+            self.execs = [str(executable)]
+        else:
+            self.execs = pathfinder.find_executables(self.install_path)
+            if info.uid == 'wow':
+                # Retail shares the install root, but must not track Classic.
+                classic_paths = [Path(install_path) / folder for folder in
+                                 ('_classic_', '_classic_era_', '_anniversary_')]
+                self.execs = [exe for exe in self.execs
+                              if not any(Path(exe).is_relative_to(path) for path in classic_paths)]
         self._processes = set()
 
     @property
@@ -42,7 +65,7 @@ class InstalledGame(object):
 
     def add_process(self, process: Process):
         try:
-            if process.exe() in self.execs:
+            if self.matches_executable(process.exe()):
                 self._processes.add(process)
             else:
                 raise ValueError(f"The process exe [{process.exe()}] doesn't match with the game execs: {self.execs}")
@@ -54,6 +77,9 @@ class InstalledGame(object):
                 else:
                     raise ValueError(
                         f"The process name [{process.name()}] doesn't match with the game exe: {self.info.exe}")
+
+    def matches_executable(self, executable: str) -> bool:
+        return os.path.normcase(executable) in [os.path.normcase(path) for path in self.execs]
 
     def is_running(self):
         for process in self._processes:
@@ -80,7 +106,6 @@ class LocalGames():
         self.parsed_battlenet = False
 
         self._classic_games_thread = None
-        self._battlenet_games_thread = None
 
     def _add_classic_game(self, game, key):
         if game.registry_path:
@@ -142,24 +167,12 @@ class LocalGames():
         if not self.parsed_classics:
             self.parsed_classics = True
 
-    def parse_local_battlenet_games(self, database_parser_games, config_parser_games):
+    def parse_local_battlenet_games(self, database_parser_games, config_parser_games, aggregate_games=None):
         """Game is considered as installed when present in both config and product.db"""
-        # Give the worker threads up to 4 seconds to finish.
-        join_timeout = 4
-
         log.info(f"Games found in db {database_parser_games}")
         log.info(f"Games found in config {config_parser_games}")
-
-        try:
-            # Use thread.is_alive() to wait for completion.
-            if not self._battlenet_games_thread or not self._battlenet_games_thread.is_alive():
-                self._battlenet_games_thread = Thread(target=self._get_battlenet_installed_games, daemon=True, args=[database_parser_games, config_parser_games])
-                self._battlenet_games_thread.start()
-                log.info("Started battlenet games thread")
-            if self._battlenet_games_thread:
-                self._battlenet_games_thread.join(join_timeout)
-        except Exception as e:
-            log.exception(str(e))
+        # Callers run this scan in a worker thread and await its completion.
+        self._get_battlenet_installed_games(database_parser_games, config_parser_games, aggregate_games)
 
     async def parse_local_classic_games(self):
         # Give the worker threads up to 4 seconds to finish.
@@ -174,7 +187,7 @@ class LocalGames():
         if self._classic_games_thread:
             await asyncio.to_thread(self._classic_games_thread.join, join_timeout)
 
-    def _get_battlenet_installed_games(self, database_parser_games, config_parser_games):
+    def _get_battlenet_installed_games(self, database_parser_games, config_parser_games, aggregate_games=None):
 
         def _add_battlenet_game(config_game, db_game):
             if config_game.uninstall_tag != db_game.uninstall_tag:
@@ -184,6 +197,10 @@ class LocalGames():
             except KeyError:
                 log.warning(f'[{config_game.uid}] is not known blizzard game. Skipping')
                 return None
+            if isinstance(blizzard_game, WoWVariantGame):
+                if (SYSTEM != Platform.WINDOWS or db_game.ngdp != blizzard_game.product_code
+                        or not (db_game.installed or db_game.playable)):
+                    return None
             try:
                 log.info(f"Adding {blizzard_game.uid} {blizzard_game.name} to installed games")
                 return InstalledGame(
@@ -197,6 +214,10 @@ class LocalGames():
                 )
             except FileNotFoundError as e:
                 log.warning(str(e) + '. Probably outdated product.db after uninstall. Skipping')
+            except OSError as e:
+                log.warning('Local game files unavailable for %s (%s). Skipping', blizzard_game.uid, type(e).__name__)
+            except ValueError as e:
+                log.warning('Invalid local game metadata: %s. Skipping', e)
             return None
 
         games = {}
@@ -205,6 +226,18 @@ class LocalGames():
                 installed_game = _add_battlenet_game(config_game, db_game)
                 if installed_game:
                     games[installed_game.info.uid] = installed_game
+            if SYSTEM == Platform.WINDOWS and aggregate_games:
+                try:
+                    discovered = discover_game(db_game, config_parser_games, aggregate_games, database_parser_games)
+                    if discovered is not None:
+                        info, last_played = discovered
+                        games[info.uid] = InstalledGame(
+                            info, db_game.uninstall_tag, db_game.version, last_played,
+                            db_game.install_path, db_game.playable, db_game.installed,
+                        )
+                        log.info("Automatically detected Battle.net game %s (%s)", info.name, info.uid)
+                except OSError as error:
+                    log.warning("Automatic discovery skipped for %s (%s)", db_game.uninstall_tag, type(error).__name__)
         with self.installed_battlenet_games_lock:
             self.installed_battlenet_games = games
         if not self.parsed_battlenet:

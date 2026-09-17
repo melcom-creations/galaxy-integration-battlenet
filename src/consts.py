@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 from enum import Enum
 import os
 
@@ -31,3 +31,4 @@ WINDOWS_UNINSTALL_LOCATION = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninsta
 LS_REGISTER = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 
 REGION = ""
+

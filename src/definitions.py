@@ -26,6 +26,13 @@ class BlizzardGame:
 
 
 @dc.dataclass(frozen=True)
+class WoWVariantGame(BlizzardGame):
+    product_code: str
+    subdirectory: str
+    executable: str
+
+
+@dc.dataclass(frozen=True)
 class ClassicGame(BlizzardGame):
     registry_path: Optional[str] = None
     registry_installation_key: Optional[str] = None
@@ -116,6 +123,16 @@ class _Blizzard(object, metaclass=Singleton):
         BlizzardGame('s2', 'StarCraft II', 'S2'),
         BlizzardGame('wow', 'World of Warcraft', 'WoW'),
         BlizzardGame('wow_classic', 'World of Warcraft Classic', 'WoW_wow_classic'),
+        WoWVariantGame('wow_classic_era', 'World of Warcraft Classic Era',
+                       'WoW_wow_classic_era', 'wow_classic_era',
+                       '_classic_era_', 'WowClassic.exe'),
+        WoWVariantGame('wow_classic_anniversary',
+                       'World of Warcraft: Burning Crusade Classic Anniversary Edition',
+                       'WoW_wow_classic_anniversary', 'wow_anniversary',
+                       '_anniversary_', 'WowClassic.exe'),
+        WoWVariantGame('wow_classic_beta', 'World of Warcraft: Forever',
+                       'WoW_wow_classic_beta', 'wow_classic_beta',
+                       '_classic_beta_', 'WowB.exe'),
         BlizzardGame('prometheus', 'Overwatch', 'Pro'),
         BlizzardGame('w3', 'Warcraft III', 'W3'),
         BlizzardGame('hs_beta', 'Hearthstone', 'WTCG'),

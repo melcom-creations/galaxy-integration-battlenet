@@ -32,7 +32,7 @@ class ProcessProvider(object):
             except (psutil.AccessDenied, psutil.NoSuchProcess):
                 continue
             for game in games:
-                if executable_path in game.execs:
+                if game.matches_executable(executable_path):
                     game.add_process(proc)
                     running_games.add(game.info.uid)
                 if isinstance(game.info, ClassicGame):

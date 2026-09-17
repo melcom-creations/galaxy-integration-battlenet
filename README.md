@@ -128,13 +128,13 @@ Starting with version 2.1.14-64bit, the Windows integration can discover additio
 
 Discovery depends on the information Battle.net provides and GOG's catalog matching. Some games and beta versions may still need a plugin update. Uninstalled purchases still require existing account support.
 
-WoW Forever and The Witcher 3 Remastered have not yet been validated with this version.
+The Witcher 3 Remastered has not yet been validated with this version.
 
-### 🎮 World of Warcraft Classic: One Tile, Three Editions
+### 🎮 World of Warcraft Classic: One Tile, Four Editions
 
-**Classic Era, Mists of Pandaria Classic, and Burning Crusade Classic Anniversary Edition share one "World of Warcraft Classic" tile.** The integration uses GOG's existing Classic catalog entry; separate tiles for these three editions are not supported by this integration with the current catalog mappings.
+**Classic Era, Mists of Pandaria Classic, Burning Crusade Classic Anniversary Edition, and the World of Warcraft: Forever beta share one "World of Warcraft Classic" tile.** The integration uses GOG's existing Classic catalog entry; separate tiles for these editions are not supported with the current catalog mappings.
 
-Click **Play** in Galaxy to open Battle.net, select your edition from the **World of Warcraft Classic** version menu, then click **Play** there. The game does not start automatically. On Windows, all three editions report their running state and combined playtime to the same Galaxy tile. Waiting in Battle.net does not count as playtime.
+Click **Play** in Galaxy to open Battle.net, select your edition from the **World of Warcraft Classic** version menu, then click **Play** there. The game does not start automatically. On Windows, all four editions report their running state and combined playtime to the same Galaxy tile. Waiting in Battle.net does not count as playtime.
 
 ### 📚 Library Contents After Synchronization
 

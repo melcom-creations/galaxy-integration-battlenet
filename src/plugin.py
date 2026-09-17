@@ -37,7 +37,8 @@ from local_client_base import ClientNotInstalledError
 from local_client import LocalClient
 from osutils import get_directory_size
 from backend import BackendClient, AccessTokenExpired
-from definitions import Blizzard, DataclassJSONEncoder, BlizzardGame, ClassicGame
+from definitions import Blizzard, DataclassJSONEncoder, BlizzardGame, ClassicGame, WoWVariantGame
+from discovery import DiscoveredGame
 from consts import SYSTEM
 from consts import Platform as pf
 from http_client import AuthenticatedHttpClient
@@ -51,6 +52,46 @@ from setup_server import LocalSetupServer
 
 
 class BNetPlugin(Plugin):
+    # GOG's Classic catalog entry (51295433443756001) is linked to
+    # battlenet_wow_classic. Keep installation/process IDs separate: the
+    # Anniversary launcher still requires product code wow_anniversary.
+    _CATALOG_ALIASES: Dict[str, str] = {
+        'wow_classic_anniversary': 'wow_classic',
+        'wow_classic_era': 'wow_classic',
+        'wow_classic_beta': 'wow_classic',
+    }
+
+    @classmethod
+    def _catalog_id(cls, game_id: str) -> str:
+        return cls._CATALOG_ALIASES.get(game_id, game_id)
+
+    @classmethod
+    def _installation_ids(cls, game_id: str) -> tuple[str, ...]:
+        return (game_id,) + tuple(uid for uid, target in cls._CATALOG_ALIASES.items() if target == game_id)
+
+    def _installed_game_for_id(self, game_id: str):
+        games = self.local_client.get_installed_games()
+        # Preserve the existing Classic launch when both clients are installed.
+        # Anniversary is selected when it is the only installed Classic client.
+        for uid in self._installation_ids(game_id):
+            game = games.get(uid)
+            if game is not None and game.has_galaxy_installed_state:
+                return game
+        return games.get(game_id)
+
+    def _report_local_status(self, installation_id: str, state: LocalGameState, games=None):
+        catalog_id = self._catalog_id(installation_id)
+        if len(self._installation_ids(catalog_id)) > 1:
+            if games is None:
+                games = self.local_client.get_installed_games()
+            for uid in self._installation_ids(catalog_id):
+                sibling = games.get(uid)
+                if uid != installation_id and sibling is not None and sibling.has_galaxy_installed_state:
+                    state |= LocalGameState.Installed
+                    if sibling.is_running():
+                        state |= LocalGameState.Running
+        self.update_local_game_status(LocalGame(catalog_id, state))
+
     def __init__(self, reader, writer, token):
         super().__init__(Platform.Battlenet, version, reader, writer, token)
         self.local_client = LocalClient(self._update_statuses)
@@ -65,6 +106,11 @@ class BNetPlugin(Plugin):
 
         self.watched_running_games = set()
         self._watched_running_games_lock = asyncio.Lock()
+        self._imported_game_ids = set()
+        self._owned_games_imported = False
+        self._classic_session_started = None
+        self._classic_session_saved_seconds = 0
+        self._classic_last_state = None
 
     def _install_command_game_id(self, game_id):
         if game_id == 'w2be':
@@ -111,6 +157,8 @@ class BNetPlugin(Plugin):
         await asyncio.sleep(1)
         self.create_task(self.local_client.register_local_data_watcher(), 'local data watcher')
         self.create_task(self.local_client.register_classic_games_updater(), 'classic games updater')
+        if SYSTEM == pf.WINDOWS:
+            self.create_task(self._watch_classic_processes(), 'WoW Classic process watcher')
         # Resolve the region early so the login window can open without delay.
         try:
             loop = asyncio.get_running_loop()
@@ -119,7 +167,56 @@ class BNetPlugin(Plugin):
         except Exception as e:
             log.debug(f"Region pre-warm failed (non-critical): {e}")
 
+    async def _checkpoint_classic_time(self, now, finished=False):
+        if self._classic_session_started is None:
+            return
+        elapsed = max(0, int(now - self._classic_session_started))
+        delta = elapsed - self._classic_session_saved_seconds
+        if delta > 0 and (delta >= 60 or finished):
+            total = int(self._load_cache('classic_group_seconds', 0) or 0) + delta
+            self._save_cache('classic_group_seconds', total)
+            self._classic_session_saved_seconds = elapsed
+            self._save_cache('classic_group_last', int(time.time()))
+            self.update_game_time(await self.get_game_time('wow_classic', None))
+            log.info('Classic group playtime: added %s seconds; total new seconds %s', delta, total)
+
+    async def _poll_classic_processes(self):
+        games = self.local_client.get_installed_games()
+        classic_games = [game for uid, game in games.items()
+                         if self._catalog_id(uid) == 'wow_classic'
+                         and game.has_galaxy_installed_state]
+        running = await asyncio.to_thread(ProcessProvider().update_games_processes, classic_games)
+        now = time.monotonic()
+        state = LocalGameState.Installed if classic_games else LocalGameState.None_
+        if running:
+            state |= LocalGameState.Running
+            if self._classic_session_started is None:
+                self._classic_session_started = now
+                self._classic_session_saved_seconds = 0
+                log.info('Classic group session started: %s', sorted(running))
+        await self._checkpoint_classic_time(now, finished=not running)
+        if not running:
+            self._classic_session_started = None
+        if state != self._classic_last_state:
+            self.update_local_game_status(LocalGame('wow_classic', state))
+            self._classic_last_state = state
+            log.info('Classic group state: %s; running editions: %s', state, sorted(running))
+
+    async def _watch_classic_processes(self):
+        try:
+            while True:
+                try:
+                    if self._owned_games_imported:
+                        await self._poll_classic_processes()
+                except Exception:
+                    log.exception('WoW Classic process scan failed')
+                await asyncio.sleep(2)
+        finally:
+            await self._checkpoint_classic_time(time.monotonic(), finished=True)
+
     async def _notify_about_game_stop(self, game, starting_timeout):
+        if SYSTEM == pf.WINDOWS and self._catalog_id(game.info.uid) == 'wow_classic':
+            return  # The shared process watcher owns Classic state and time.
         id_to_watch = game.info.uid
 
         async with self._watched_running_games_lock:
@@ -154,14 +251,26 @@ class BNetPlugin(Plugin):
                 self._save_cache(last_key, end_timestamp)
                 
                 # Report the updated local session state to GOG Galaxy in real time.
-                self.update_game_time(GameTime(id_to_watch, new_total, end_timestamp))
+                if len(self._installation_ids(self._catalog_id(id_to_watch))) > 1:
+                    self.update_game_time(await self.get_game_time(self._catalog_id(id_to_watch), None))
+                else:
+                    self.update_game_time(GameTime(id_to_watch, new_total, end_timestamp))
                 log.info(f"Playtime tracking: Game {id_to_watch} stopped. Added {duration_mins} mins. Total: {new_total} mins.")
 
-            self.update_local_game_status(LocalGame(id_to_watch, LocalGameState.Installed))
+            self._report_local_status(id_to_watch, LocalGameState.Installed)
             self.watched_running_games.discard(id_to_watch)
 
     def _update_statuses(self, refreshed_games, previous_games):
         for blizz_id, refr in refreshed_games.items():
+            catalog_id = self._catalog_id(blizz_id)
+            if (self._owned_games_imported and isinstance(refr.info, (DiscoveredGame, WoWVariantGame))
+                    and refr.has_galaxy_installed_state and catalog_id not in self._imported_game_ids
+                    and self.authentication_client.is_authenticated()):
+                name = Blizzard[catalog_id].name if catalog_id != blizz_id else refr.info.name
+                self.add_game(Game(catalog_id, name, None, LicenseInfo(LicenseType.Unknown)))
+                self._imported_game_ids.add(catalog_id)
+            if SYSTEM == pf.WINDOWS and catalog_id == 'wow_classic':
+                continue  # Config timestamps do not prove that a game is running.
             prev = previous_games.get(blizz_id, None)
 
             if prev is None:
@@ -182,16 +291,20 @@ class BNetPlugin(Plugin):
                 continue
 
             log.info(f'Changing game {blizz_id} state to {state}')
-            self.update_local_game_status(LocalGame(blizz_id, state))
+            self._report_local_status(blizz_id, state, refreshed_games)
 
         for blizz_id, prev in previous_games.items():
+            if SYSTEM == pf.WINDOWS and self._catalog_id(blizz_id) == 'wow_classic':
+                continue
             refr = refreshed_games.get(blizz_id, None)
             if refr is None:
                 log.debug('Detected uninstalled game')
                 state = LocalGameState.None_
-                self.update_local_game_status(LocalGame(blizz_id, state))
+                self._report_local_status(blizz_id, state, refreshed_games)
 
     def log_out(self):
+        self._owned_games_imported = False
+        self._imported_game_ids.clear()
         if self.backend_client:
             asyncio.create_task(self.authentication_client.shutdown())
         self.authentication_client.user_details = None
@@ -206,7 +319,7 @@ class BNetPlugin(Plugin):
         if not self.authentication_client.is_authenticated():
             raise AuthenticationRequired()
 
-        installed_game = self.local_client.get_installed_games().get(game_id, None)
+        installed_game = self._installed_game_for_id(game_id)
         if installed_game and os.access(installed_game.install_path, os.F_OK):
             log.warning("Received install command on an already installed game")
             return await self.launch_game(game_id)
@@ -253,10 +366,11 @@ class BNetPlugin(Plugin):
         if not self.authentication_client.is_authenticated():
             raise AuthenticationRequired()
 
-        if game_id == 'wow_classic':
+        if self._catalog_id(game_id) == 'wow_classic':
             # Battle.net reports that classic WoW cannot be uninstalled through the protocol.
             # Delegate the uninstall request to the Battle.net client.
-            return self._open_battlenet_at_id(game_id)
+            installed_game = self._installed_game_for_id(game_id)
+            return self._open_battlenet_at_id(installed_game.info.uid if installed_game else game_id)
 
         if SYSTEM == pf.MACOS:
             self._open_battlenet_at_id(game_id)
@@ -282,7 +396,7 @@ class BNetPlugin(Plugin):
 
     async def launch_game(self, game_id):
         try:
-            game = self.local_client.get_installed_games().get(game_id, None)
+            game = self._installed_game_for_id(game_id)
             if game is None:
                 log.error(f'Launching game that is not installed: {game_id}')
                 return await self.install_game(game_id)
@@ -302,15 +416,20 @@ class BNetPlugin(Plugin):
                         return
                     subprocess.Popen(['open', '-b', game.info.bundle_id])
 
-                self.update_local_game_status(LocalGame(game_id, LocalGameState.Installed | LocalGameState.Running))
+                self._report_local_status(game.info.uid, LocalGameState.Installed | LocalGameState.Running)
                 asyncio.create_task(self._notify_about_game_stop(game, 6))
                 return
 
             self.local_client.refresh()
             log.info(f'Launching game of id: {game_id}, {game}')
+            if SYSTEM == pf.WINDOWS and self._catalog_id(game_id) == 'wow_classic':
+                self.local_client.select_classic_variant(game)
+                # Any edition may be selected later. Keep Battle.net open and
+                # let the process watcher report the actual start, without a timeout.
+                return
             await self.local_client.launch_game(game, wait_sec=60)
 
-            self.update_local_game_status(LocalGame(game_id, LocalGameState.Installed | LocalGameState.Running))
+            self._report_local_status(game.info.uid, LocalGameState.Installed | LocalGameState.Running)
             self.local_client.close_window()
             asyncio.create_task(self._notify_about_game_stop(game, 3))
 
@@ -411,6 +530,12 @@ class BNetPlugin(Plugin):
     async def get_owned_games(self):
         if not self.authentication_client.is_authenticated():
             raise AuthenticationRequired()
+        self._owned_games_imported = False
+        # Finish the local scan before taking the ownership fallback snapshot.
+        try:
+            await self.local_client.refresh_local_games()
+        except Exception as error:
+            log.warning("Local Battle.net refresh failed (%s); retaining available games", type(error).__name__)
 
         def _parse_battlenet_games(standard_games: dict, cn: bool) -> Dict[BlizzardGame, LicenseType]:
             licenses = defaultdict(lambda: LicenseType.Unknown, {
@@ -465,6 +590,8 @@ class BNetPlugin(Plugin):
             log.warning(f"Could not fetch owned games from Blizzard API ({e}), falling back to local games only.")
             installed = self.local_client.get_installed_games()
             for uid, installed_game in installed.items():
+                if isinstance(installed_game.info, (DiscoveredGame, WoWVariantGame)):
+                    continue  # Merged below with an unknown license, not a purchase.
                 try:
                     blizz_game = Blizzard[uid]
                     owned_games[blizz_game] = LicenseType.SinglePurchase
@@ -481,16 +608,28 @@ class BNetPlugin(Plugin):
             if game not in owned_games:
                 owned_games[game] = LicenseType.FreeToPlay
 
-        return [
-            Game(game.uid, game.name, None, LicenseInfo(license_type))
-            for game, license_type in owned_games.items()
-        ]
+        # A successful account response can still omit newly installed products.
+        # Installation is not proof of purchase: do not assign SinglePurchase.
+        for installed_game in self.local_client.get_installed_games().values():
+            if isinstance(installed_game.info, (DiscoveredGame, WoWVariantGame)) and installed_game.has_galaxy_installed_state:
+                owned_games.setdefault(installed_game.info, LicenseType.Unknown)
+
+        catalog_games = {}
+        for game, license_type in owned_games.items():
+            catalog_id = self._catalog_id(game.uid)
+            name = Blizzard[catalog_id].name if catalog_id != game.uid else game.name
+            previous = catalog_games.get(catalog_id)
+            if previous is None or previous.license_info.license_type == LicenseType.Unknown:
+                catalog_games[catalog_id] = Game(catalog_id, name, None, LicenseInfo(license_type))
+        self._imported_game_ids = set(catalog_games)
+        self._owned_games_imported = True
+        return list(catalog_games.values())
 
     async def get_local_games(self):
         timeout = time.time() + 2
 
         try:
-            translated_installed_games = []
+            translated_installed_games = {}
 
             while not self.local_client.games_finished_parsing():
                 await asyncio.sleep(0.1)
@@ -506,20 +645,49 @@ class BNetPlugin(Plugin):
                     state = LocalGameState.Installed
                     if uid in running_games:
                         state |= LocalGameState.Running
-                    translated_installed_games.append(LocalGame(uid, state))
+                    catalog_id = self._catalog_id(uid)
+                    translated_installed_games[catalog_id] = (
+                        translated_installed_games.get(catalog_id, LocalGameState.None_) | state)
             self.local_client.installed_games_cache = installed_games
-            return translated_installed_games
+            return [LocalGame(uid, state) for uid, state in translated_installed_games.items()]
 
         except Exception as e:
             log.exception(f"failed to get local games: {str(e)}")
             raise
     
     async def get_local_size(self, game_id: str, context) -> int:
-        install_path = self.local_client.installed_games_cache[game_id].install_path
+        game = self._installed_game_for_id(game_id)
+        if game is None:
+            raise KeyError(game_id)
+        install_path = game.install_path
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, get_directory_size, install_path)
 
     async def get_game_time(self, game_id, context):
+        if len(self._installation_ids(game_id)) > 1:
+            # Keep historical counters under their original installation IDs.
+            # Report the combined Classic entry without copying or rewriting them.
+            times = []
+            timestamps = []
+            seconds = self._load_cache('classic_group_seconds', None)
+            if seconds is not None:
+                times.append(int(seconds) // 60)
+            last = self._load_cache('classic_group_last', None)
+            if last is not None:
+                timestamps.append(int(last))
+            for uid in self._installation_ids(game_id):
+                value = self._load_cache(f'time_{uid}', None)
+                if value is not None:
+                    times.append(int(value))
+                value = self._load_cache(f'last_{uid}', None)
+                if value is not None:
+                    timestamps.append(int(value))
+                for info in self.local_client.config_parser.games:
+                    if info.uid == uid and info.last_played is not None:
+                        timestamps.append(int(info.last_played))
+            return GameTime(game_id, sum(times) if times else None,
+                            max(timestamps) if timestamps else None)
+
         total_time = None
         last_played_time = None
 
@@ -530,9 +698,13 @@ class BNetPlugin(Plugin):
         local_time = self._load_cache(time_key, None)
         local_last_played = self._load_cache(last_key, None)
 
-        blizzard_game = Blizzard[game_id]
+        try:
+            blizzard_game = Blizzard[game_id]
+        except KeyError:
+            installed_game = self.local_client.get_installed_games().get(game_id)
+            blizzard_game = installed_game.info if installed_game else None
 
-        if blizzard_game.name == "Overwatch":
+        if blizzard_game is not None and blizzard_game.name == "Overwatch":
             total_time = await self._get_overwatch_time()
             log.debug(f"Gametime for Overwatch is {total_time} minutes.")
 
@@ -545,10 +717,14 @@ class BNetPlugin(Plugin):
             last_played_time = local_last_played
         else:
             for config_info in self.local_client.config_parser.games:
-                if config_info.uid == blizzard_game.uid:
+                if config_info.uid == game_id:
                     if config_info.last_played is not None:
                         last_played_time = int(config_info.last_played)
                     break
+            if last_played_time is None and isinstance(blizzard_game, DiscoveredGame):
+                local_game = self.local_client.get_installed_games().get(game_id)
+                if local_game is not None and local_game.last_played is not None:
+                    last_played_time = int(local_game.last_played)
 
         return GameTime(game_id, total_time, last_played_time)
 

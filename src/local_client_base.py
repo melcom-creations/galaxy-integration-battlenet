@@ -11,6 +11,8 @@ from process import ProcessProvider
 from consts import Platform, SYSTEM, CONFIG_PATH, AGENT_PATH
 from watcher import FileWatcher
 from parsers import ConfigParser, DatabaseParser
+from discovery import DiscoveredGame, load_aggregate, valid_launch_uri
+from definitions import WoWVariantGame
 
 from local_games import LocalGames, InstalledGame
 import json
@@ -37,6 +39,7 @@ def load_config(battlenet_config_path):
 class BaseLocalClient(abc.ABC):
 
     PRODUCT_DB_PATH = Path(AGENT_PATH) / 'product.db'
+    AGGREGATE_PATH = Path(AGENT_PATH) / 'aggregate.json'
     CONFIG_PATH = CONFIG_PATH
 
     def __init__(self, update_statuses):
@@ -45,6 +48,7 @@ class BaseLocalClient(abc.ABC):
         self._process = None
         self._exe: Optional[str] = self._find_exe()
         self._games_provider = LocalGames()
+        self._scan_lock = asyncio.Lock()
 
         self.database_parser: Optional[DatabaseParser] = None
         self.config_parser = ConfigParser(None)
@@ -145,12 +149,39 @@ class BaseLocalClient(abc.ABC):
                 return 'Game process is no longer running'
             await asyncio.sleep(1)
 
+    def select_classic_variant(self, game: InstalledGame):
+        """Open the installed edition; the user chooses and presses Play in Battle.net."""
+        if not self.is_installed:
+            raise ClientNotInstalledError()
+        if SYSTEM != Platform.WINDOWS:
+            raise ValueError('Classic edition selection is supported on Windows only')
+        if game.info.uid not in ('wow_classic', 'wow_classic_era',
+                                 'wow_classic_anniversary', 'wow_classic_beta'):
+            raise ValueError('Not a supported WoW Classic edition')
+        # The WoW launcher also submits --gamepath and re-registers the shared
+        # installation, which can trigger BLZBNTAGT00000AF0. Only select the
+        # existing installation in Battle.net; no registration is needed.
+        self.open_battlenet(game.info.uid)
+
     async def launch_game(self, game: InstalledGame, wait_sec):
         if not self.is_installed:
             raise ClientNotInstalledError()
         timeout = time() + wait_sec
 
-        if game.info.family == 'WoW_wow_classic':
+        if isinstance(game.info, DiscoveredGame):
+            product_id = game.info.launch_uri.rsplit('/', 1)[-1]
+            if SYSTEM != Platform.WINDOWS or not valid_launch_uri(game.info.launch_uri, product_id):
+                raise ValueError('Invalid discovered Battle.net launch link')
+            os.startfile(game.info.launch_uri)
+        elif isinstance(game.info, WoWVariantGame):
+            if SYSTEM != Platform.WINDOWS:
+                raise ValueError('WoW variant launch is currently supported on Windows only')
+            launcher = Path(game.install_path) / 'World of Warcraft Launcher.exe'
+            if not launcher.is_file():
+                raise FileNotFoundError(f'WoW launcher missing: {launcher}')
+            subprocess.Popen([str(launcher), f'--productcode={game.info.product_code}'],
+                             cwd=game.install_path)
+        elif game.info.family == 'WoW_wow_classic':
             if SYSTEM == Platform.WINDOWS:
                 cmd = f"\"{Path(game.install_path)/'World of Warcraft Launcher.exe'}\" --productcode=wow_classic"
             else:
@@ -203,36 +234,44 @@ class BaseLocalClient(abc.ABC):
             raise
         return True
 
+    def _scan_local_games(self):
+        if not self._load_local_files():
+            return False
+        if self.database_parser is None:
+            return False
+        self._games_provider.parse_local_battlenet_games(
+            self.database_parser.games,
+            self.config_parser.games,
+            load_aggregate(self.AGGREGATE_PATH) if SYSTEM == Platform.WINDOWS else {},
+        )
+        return True
+
+    async def refresh_local_games(self):
+        # Ownership import and file notifications must not run overlapping scans.
+        async with self._scan_lock:
+            return await asyncio.to_thread(self._scan_local_games)
+
     async def register_local_data_watcher(self):
         parse_local_data_event = asyncio.Event()
         FileWatcher(self.CONFIG_PATH, parse_local_data_event, interval=1)
         FileWatcher(self.PRODUCT_DB_PATH, parse_local_data_event, interval=2.5)
+        if SYSTEM == Platform.WINDOWS:
+            FileWatcher(self.AGGREGATE_PATH, parse_local_data_event, interval=2.5, notify_on_appearance=True)
         parse_local_data_event.set()
         while True:
             try:
                 await parse_local_data_event.wait()
+                # Changes arriving during the scan must trigger another pass.
+                parse_local_data_event.clear()
 
-                if not self._load_local_files():
+                if not await self.refresh_local_games():
                     continue
-                database_parser = self.database_parser
-                if database_parser is None:
-                    continue
-                if self.is_installed != database_parser.battlenet_present:
-                    self.refresh()
-
-                await asyncio.to_thread(
-                    self._games_provider.parse_local_battlenet_games,
-                    database_parser.games,
-                    self.config_parser.games,
-                )
                 refreshed_games = self.get_installed_games()
 
                 self._update_statuses(refreshed_games, self.installed_games_cache)
                 self.installed_games_cache = refreshed_games
             except Exception:
                 log.exception("Unexpected error while processing local Battle.net updates")
-            finally:
-                parse_local_data_event.clear()
 
     async def register_classic_games_updater(self):
         tick_count = 0

@@ -4,6 +4,22 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.14-64bit
+
+### Overview for Version 2.1.14-64bit
+
+Adds automatic discovery of additional installed games and support for all four WoW Classic editions on Windows.
+
+### Added in Version 2.1.14-64bit
+
+- **Automatic game discovery:** Detects additional installed games using Battle.net's local game information, including new installations while Galaxy is running.
+- **One WoW Classic tile:** Classic Era, Mists of Pandaria Classic, Burning Crusade Classic Anniversary Edition, and the World of Warcraft: Forever beta share "World of Warcraft Classic", with a combined running state and playtime. Separate edition tiles are not supported with the current GOG catalog mappings.
+- **Classic edition selection:** Click Play in Galaxy, choose your edition in Battle.net's World of Warcraft Classic version menu, then click Play there.
+
+Automatic discovery depends on Battle.net's local information and GOG's catalog matching; support for every new game is not guaranteed.
+
+---
+
 ## Version 2.1.13-64bit
 
 ### Overview for Version 2.1.13-64bit
