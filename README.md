@@ -126,7 +126,9 @@ For the first synchronization after installing, updating, or configuring the plu
 
 Starting with version 2.1.14-64bit, the Windows integration can discover additional installed games using Battle.net's local game information. New installations can appear while Galaxy is running, and discovered games open through Battle.net.
 
-Discovery depends on the information Battle.net provides and GOG's catalog matching. Some games and beta versions may still need a plugin update. Uninstalled purchases still require existing account support.
+Some games are not reported by Battle.net as owned before they are installed. If a game is missing from your Galaxy library, install it through the Battle.net desktop app. The plugin should detect it as soon as Battle.net marks the installation as playable. This currently applies to **Overwatch** and the supported **World of Warcraft Classic** editions.
+
+If the game still does not appear, keep Battle.net open and follow [First Start and Initial Sync](#-first-start-and-initial-sync). Discovery also depends on GOG's catalog matching, so some games and beta versions may still require a plugin update.
 
 The Witcher 3 Remastered has not yet been validated with this version.
 
@@ -138,7 +140,7 @@ Click **Play** in Galaxy to open Battle.net, select your edition from the **Worl
 
 ### 📚 Library Contents After Synchronization
 
-After synchronization, GOG Galaxy displays your purchased Battle.net games together with all supported free-to-play titles known to the plugin. Free-to-play games are shown whether or not you have previously installed or played them. This also applies to titles such as Call of Duty.
+After synchronization, GOG Galaxy displays your purchased Battle.net games together with supported free-to-play titles returned by Battle.net. Some free-to-play games may appear only after they have been installed; see [Automatic Discovery of Additional Games](#-automatic-discovery-of-additional-games).
 
 During synchronization, entries may temporarily appear as **Unknown game**. If GOG's catalog has no mapping for a reported Battle.net ID, this can persist even when detection and launching work. A verified catalog alias or a catalog correction is then required; waiting or reconnecting alone does not establish the missing mapping.
 
