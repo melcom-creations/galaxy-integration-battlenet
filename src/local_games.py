@@ -53,7 +53,7 @@ class InstalledGame(object):
             if info.uid == 'wow':
                 # Retail shares the install root, but must not track Classic.
                 classic_paths = [Path(install_path) / folder for folder in
-                                 ('_classic_', '_classic_era_', '_anniversary_')]
+                                 ('_classic_', '_classic_era_', '_anniversary_', '_classic_beta_')]
                 self.execs = [exe for exe in self.execs
                               if not any(Path(exe).is_relative_to(path) for path in classic_paths)]
         self._processes = set()

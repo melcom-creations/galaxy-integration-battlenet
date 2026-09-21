@@ -177,8 +177,11 @@ class BNetPlugin(Plugin):
             self._save_cache('classic_group_seconds', total)
             self._classic_session_saved_seconds = elapsed
             self._save_cache('classic_group_last', int(time.time()))
-            self.update_game_time(await self.get_game_time('wow_classic', None))
             log.info('Classic group playtime: added %s seconds; total new seconds %s', delta, total)
+        # Persist checkpoints while the game is running, but notify Galaxy only
+        # once when the session ends, like the regular game session tracker.
+        if finished:
+            self.update_game_time(await self.get_game_time('wow_classic', None))
 
     async def _poll_classic_processes(self):
         games = self.local_client.get_installed_games()
@@ -704,7 +707,7 @@ class BNetPlugin(Plugin):
             installed_game = self.local_client.get_installed_games().get(game_id)
             blizzard_game = installed_game.info if installed_game else None
 
-        if blizzard_game is not None and blizzard_game.name == "Overwatch":
+        if local_time is None and blizzard_game is not None and blizzard_game.name == "Overwatch":
             total_time = await self._get_overwatch_time()
             log.debug(f"Gametime for Overwatch is {total_time} minutes.")
 

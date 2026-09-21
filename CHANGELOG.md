@@ -4,6 +4,16 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.15-64bit
+
+### Fixed in Version 2.1.15-64bit
+
+- **WoW Classic playtime updates:** Reports accumulated playtime to Galaxy when a session ends instead of every minute. Playtime continues to be saved locally every minute.
+- **Overwatch playtime sync:** Locally recorded playtime can now sync even when the external Overwatch stats service is unavailable.
+- **WoW playtime separation:** Excludes Classic beta processes from regular World of Warcraft tracking, preventing them from being counted toward both games when they share an installation folder.
+
+---
+
 ## Version 2.1.14-64bit
 
 ### Overview for Version 2.1.14-64bit
