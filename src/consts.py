@@ -22,7 +22,7 @@ elif SYSTEM == Platform.MACOS:
     CONFIG_PATH = os.path.expanduser('~/Library/Application Support/Battle.net/Battle.net.config')
 
 LOCALE = "en_US"
-REDIRECT_URI = "http://friendsofgalaxy.com"
+REDIRECT_URI = "http://127.0.0.1:43821/oauth/callback"
 
 FIREFOX_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0"
 
@@ -31,5 +31,6 @@ WINDOWS_UNINSTALL_LOCATION = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninsta
 LS_REGISTER = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 
 REGION = ""
+
 
 

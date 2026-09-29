@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Battle.net Plugin – One-Time Setup</title>
+<title>Battle.net Connection Setup</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -261,158 +260,97 @@
 </head>
 <body>
 <div class="card">
+  <div class="header"><div>
+    <h1>Battle.net Connection Setup</h1>
+    <p>Check your Blizzard API client, then sign in.</p>
+  </div></div>
 
-  <div class="header">
-    <div class="header-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-    </div>
-    <div>
-      <h1>Battle.net Plugin – One-Time Setup</h1>
-      <p>GOG Galaxy 2.0 · Blizzard OAuth Configuration</p>
-    </div>
-  </div>
+  __LOGIN_ERROR__
 
-  <div class="warning">
-    <div class="warning-icon">⚠</div>
-    <div>
-      <strong>Mandatory one-time setup.</strong> The shared <code>CLIENT_ID</code> and <code>CLIENT_SECRET</code> used by the community plugin have been revoked by Blizzard. You must register your own free OAuth client before the plugin can authenticate.
-    </div>
-  </div>
+  <div class="warning"><div>
+    <strong>Updating from version 2.1.15 or earlier?</strong>
+    <p>Open your <strong>existing Blizzard API client</strong> using the portal address in step 1. Under <strong>Redirect URLs</strong>, add this address on a new line and click <strong>Save</strong>:</p>
+    <div class="code-block" style="cursor:pointer" onclick="copyToClipboard('__REDIRECT_URI__', this, 'Copied!')">__REDIRECT_URI__ <small>- Click to copy</small></div>
+    <p>The old <code>http://friendsofgalaxy.com</code> entry alone no longer works with this plugin. Allow up to <strong>10 minutes</strong> after saving, then continue below. Keep your existing Client ID and Client Secret; no new API client is needed.</p>
+  </div></div>
+  <p class="step-desc"><strong>First time using the plugin?</strong> Follow steps 1-3 below to create or use your personal Blizzard API client and sign in.</p>
+
+  <!-- EXISTING_ONLY -->
+  <div class="tip">Your Client ID and Client Secret are already saved. You do not need to enter them again or create a new API client.</div>
+  <!-- /EXISTING_ONLY -->
+  <!-- NEW_ONLY -->
+  <div class="tip">You need a free personal Blizzard API client. If you already have one, reuse it.</div>
+  <!-- /NEW_ONLY -->
 
   <div class="steps">
-
     <div class="step">
-      <div class="step-left">
-        <div class="step-number">1</div>
-        <div class="step-line"></div>
-      </div>
+      <div class="step-left"><div class="step-number">1</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Open the Blizzard Client Registration</div>
-        <div class="step-desc">
-          Open this URL in your regular browser (Firefox, Chrome, Edge) and sign in with your Battle.net account. The link takes you directly to the client creation form:<br>
-          <div class="code-block" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="copyToClipboard('https://develop.battle.net/access/clients/create', this, '✔ Copied!')">
-            <span>https://develop.battle.net/access/clients/create</span>
-            <span style="font-size:12px; color:var(--accent);">📋 Copy Link</span>
+        <div class="step-title">Create or open your Blizzard API client</div>
+        <div class="step-desc">Open this address in your regular browser (Firefox, Chrome, or Edge) and sign in with your Battle.net account:</div>
+        <div class="code-block" style="cursor:pointer" onclick="copyToClipboard('https://develop.battle.net/access/clients', this, 'Copied!')">https://develop.battle.net/access/clients <small>- Click to copy</small></div>
+        <p class="step-desc"><strong>Already have an API client?</strong> Open that client and continue with step 2. Keep your existing Client ID and Client Secret.</p>
+        <div class="step-desc"><strong>New users:</strong> Click <strong>Create Client</strong>. Fill in the form with these values:
+          <div class="fields">
+            <div class="field"><span class="field-label">Client Name</span><span class="field-value"><code>GOG Galaxy Plugin - YourName</code><br>Replace YourName with your own name or another unique suffix. If the name is already taken, choose a different one.</span></div>
+            <div class="field"><span class="field-label">Redirect URLs</span><span class="field-value"><code>__REDIRECT_URI__</code><br>Copy this exact address, including the port and path.</span></div>
+            <div class="field"><span class="field-label">Service URL</span><span class="field-value">Select "I do not have a service URL for this client".</span></div>
+            <div class="field"><span class="field-label">Intended Use</span><span class="field-value">Personal GOG Galaxy 2.1+ desktop plugin to display and launch my Battle.net games.</span></div>
           </div>
+          <p>Click <strong>Save</strong>. Under <strong>Manage Your Clients</strong>, open the entry you just created. In its <strong>Credentials</strong> section, copy the <strong>Client ID</strong>, then click <strong>Show Secret</strong> and copy the <strong>Client Secret</strong>. You will enter these two values in step 3 below.</p>
         </div>
       </div>
     </div>
 
     <div class="step">
-      <div class="step-left">
-        <div class="step-number">2</div>
-        <div class="step-line"></div>
-      </div>
+      <div class="step-left"><div class="step-number">2</div><div class="step-line"></div></div>
       <div class="step-body">
-        <div class="step-title">Fill in the form</div>
-        <div class="step-desc">Use these exact values:</div>
-        <div class="fields">
-          <div class="field">
-            <span class="field-label">Client Name</span>
-            <span class="field-value"><code>GOG Galaxy Plugin - MyClient123</code> &nbsp;<span style="color:var(--muted);font-size:12px;">(must be unique, see note below)</span></span>
-          </div>
-          <div class="field">
-            <span class="field-label">Redirect URLs</span>
-            <span class="field-value"><code>http://friendsofgalaxy.com</code></span>
-          </div>
-          <div class="field">
-            <span class="field-label">Service URL</span>
-            <span class="field-value"><em>Check "I do not have a service URL for this client"</em></span>
-          </div>
-          <div class="field">
-            <span class="field-label">Intended Use</span>
-            <span class="field-value" style="font-size:12.5px;color:#8b949e;">Personal GOG Galaxy 2.0 desktop client plugin to display owned Blizzard games and launch them via the Battle.net launcher. Only used locally on my own PC.</span>
-          </div>
-        </div>
-        <div class="warning" style="margin-top:16px; margin-bottom:0;">
-          <div class="warning-icon">⚠</div>
-          <div>
-            <strong>Client Name must be unique.</strong> It has to be unique across all Blizzard developer accounts. Entering the exact name <code>GOG Galaxy Plugin</code> will usually fail with a <code>500 Internal Server Error</code>, because that name has already been taken by other users of this and similar plugins. Add any distinguishing text, for example <code>GOG Galaxy Plugin - MyClient123</code>, and the form will save immediately.
-          </div>
-        </div>
+        <div class="step-title">Check the Redirect URL</div>
+        <div class="step-desc">Under <strong>Redirect URLs</strong>, make sure this exact address is present on its own line. If it is missing, add it and click <strong>Save</strong>.</div>
+        <div class="code-block" style="cursor:pointer" onclick="copyToClipboard('__REDIRECT_URI__', this, 'Copied!')">__REDIRECT_URI__ <small>- Click to copy</small></div>
+        <div class="warning"><div><strong>After changing the address, allow up to 10 minutes before signing in.</strong> Blizzard may otherwise show "Invalid grant type or callback URL is not valid".</div></div>
+        <p class="step-desc">This address returns the login to your own computer. No external callback website is needed. The plugin cannot check or change the address saved in Blizzard's portal.</p>
+        <p class="step-desc">If the address is already saved and working, leave it unchanged and continue.</p>
       </div>
     </div>
 
     <div class="step">
-      <div class="step-left">
-        <div class="step-number">3</div>
-        <div class="step-line"></div>
-      </div>
+      <div class="step-left"><div class="step-number">3</div></div>
       <div class="step-body">
-        <div class="step-title">Copy your credentials</div>
-        <div class="step-desc">
-          Click <strong>Save</strong>. You will be redirected to <strong>Manage Your Clients</strong> — the credentials are not shown immediately. To find them:
-          <div class="fields" style="margin-top:12px;">
-            <div class="field">
-              <span class="field-label">Step A</span>
-              <span class="field-value">On <strong>Manage Your Clients</strong>, click the entry with the name you just chose to open it.</span>
-            </div>
-            <div class="field">
-              <span class="field-label">Step B</span>
-              <span class="field-value">Under <strong>Manage Client → Credentials</strong> you will see your <strong>Client ID</strong> displayed directly.</span>
-            </div>
-            <div class="field">
-              <span class="field-label">Step C</span>
-              <span class="field-value">Click <strong>Show Secret</strong> to reveal your <strong>Client Secret</strong>. Copy both values.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-left">
-        <div class="step-number">4</div>
-        <div class="step-line"></div>
-      </div>
-      <div class="step-body">
-        <div class="step-title">Enter your credentials here</div>
-        <div class="step-desc">
-          Paste the Client ID and Client Secret from the Blizzard Developer Portal. The plugin saves them automatically when you continue.
-        </div>
+        <div class="step-title">Continue to Battle.net</div>
         <form class="credential-form" action="/save" method="post" autocomplete="off" onsubmit="saveCredentials(event)">
           <input type="hidden" name="nonce" value="__NONCE__">
+          <!-- EXISTING_ONLY -->
+          <p class="step-desc">Your saved Client ID and Client Secret will be used. You do not need to enter them again.</p>
+          <label><input type="checkbox" name="replace_credentials" value="yes" style="width:auto;" onchange="setCredentialEntry(this.checked)"> Use a different Client ID and Client Secret</label>
+          <!-- /EXISTING_ONLY -->
+          <fieldset id="credential-fields" __CREDENTIAL_ATTRIBUTES__ style="border:0; padding:0; margin:0;">
+          <p class="step-desc">In your API client's <strong>Credentials</strong> section, copy the Client ID and use <strong>Show Secret</strong> to copy the Client Secret. Enter them here:</p>
           <label for="client-id">Client ID</label>
-          <input id="client-id" name="client_id" type="text" required
-                 minlength="8" maxlength="256" spellcheck="false" autocapitalize="off">
+          <input id="client-id" name="client_id" type="text" required minlength="8" maxlength="256" spellcheck="false" autocapitalize="off">
           <label for="client-secret">Client Secret</label>
-          <input id="client-secret" name="client_secret" type="password" required
-                 minlength="8" maxlength="256" spellcheck="false" autocapitalize="off">
-          <div class="cta">
-            <button class="btn" type="submit">Save and Continue</button>
-          </div>
+          <input id="client-secret" name="client_secret" type="password" required minlength="8" maxlength="256" spellcheck="false" autocapitalize="off">
+          </fieldset>
+          <label><input type="checkbox" name="redirect_confirmed" value="yes" required style="width:auto;"> The local Redirect URL above is saved in my Blizzard API client.</label>
+          <div class="cta"><button class="btn" type="submit">Continue to Battle.net</button></div>
           <p id="setup-status" style="display:none; margin-top:12px; color:#ff6b6b;"></p>
         </form>
+        <p class="step-desc">Next, sign in on Blizzard's login page. If Blizzard rejects the callback address, close that login window, correct the portal entry, wait up to 10 minutes, and connect again.</p>
       </div>
     </div>
-
-    <div class="step">
-      <div class="step-left">
-        <div class="step-number">5</div>
-        <div class="step-line"></div>
-      </div>
-      <div class="step-body">
-        <div class="step-title">Continue with Battle.net login</div>
-        <div class="step-desc">
-          After you click <strong>Save and Continue</strong>, this setup closes and the normal Battle.net login opens automatically. No manual file editing or Galaxy restart is required.
-        </div>
-      </div>
-    </div>
-
   </div>
 
-  <div class="tip" style="background:#1a0a0a; border-color:#6e1313; color:#e07b7b;">
-    <span style="font-size:16px; flex-shrink:0; margin-top:1px;">⛔</span>
-    <span>Keep your <strong style="color:#ff6b6b;">Client Secret</strong> private. <strong style="color:#ff6b6b;">Never</strong> share it publicly or commit it to a public repository. On Windows, the plugin stores both OAuth values in an external file protected for your current Windows user account.</span>
-  </div>
-
-  <div class="tip">
-    <span>Connect creates <code>%LOCALAPPDATA%\melcom-creations\GOG Galaxy Integrations\Battle.net\oauth.json</code> with a setup marker. Save and Continue replaces it with the protected OAuth configuration, so plugin updates no longer overwrite your values.</span>
-  </div>
-
+  <div class="tip">This guide appears before each new sign-in, including when you reconnect. It does not interrupt an existing valid Galaxy connection.</div>
+  <div class="tip">The plugin saves your OAuth configuration automatically outside the plugin folder. On Windows, it is protected for your Windows account. Keep your Client Secret private.</div>
 </div>
 
 <script>
+function setCredentialEntry(enabled) {
+  const fields = document.getElementById('credential-fields');
+  fields.disabled = !enabled;
+  fields.hidden = !enabled;
+}
+
 async function saveCredentials(event) {
   event.preventDefault();
   const form = event.currentTarget;

@@ -4,6 +4,19 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.16-64bit
+
+### Changed in Version 2.1.16-64bit
+
+- **Local login callback:** Battle.net login now returns to your own computer instead of an external website. Login responses are checked against the current login attempt.
+- **Unified connection setup:** One guide covers client creation, every required field, and updates for existing users before each new sign-in. Saved credentials can be reused or replaced in the same window.
+- **Callback error guidance:** Detects Blizzard's "Invalid grant type or callback URL is not valid" page and returns to setup with instructions to check the registered address and allow up to 10 minutes after saving.
+- **Session renewal:** Uses the plugin's own OAuth client and validates Blizzard redirects before exchanging the authorization code.
+
+Existing users must add `http://127.0.0.1:43821/oauth/callback` to their Blizzard API client's Redirect URLs before the next login. No new API client is required.
+
+---
+
 ## Version 2.1.15-64bit
 
 ### Fixed in Version 2.1.15-64bit

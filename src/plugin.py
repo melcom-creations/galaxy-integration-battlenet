@@ -49,6 +49,7 @@ from oauth_config import (
     write_oauth_config,
 )
 from setup_server import LocalSetupServer
+from oauth_callback import CallbackRejected
 
 
 class BNetPlugin(Plugin):
@@ -126,7 +127,7 @@ class BNetPlugin(Plugin):
             return json.loads(self.persistent_cache[key])
         return default
 
-    async def _setup_next_step(self):
+    async def _setup_next_step(self, login_error=None):
         try:
             config_path = prepare_oauth_config()
         except OAuthConfigError as error:
@@ -134,7 +135,7 @@ class BNetPlugin(Plugin):
             raise InvalidCredentials("Battle.net OAuth setup file could not be created") from error
         log.info("Prepared Battle.net OAuth setup file at %s", config_path)
         await self.setup_server.stop()
-        await self.setup_server.start()
+        await self.setup_server.start(existing_credentials=self.oauth_credentials, login_error=login_error)
         return NextStep(
             "web_session",
             {
@@ -453,14 +454,9 @@ class BNetPlugin(Plugin):
 
         if self.oauth_credentials is None:
             log.info("Battle.net OAuth credentials are not configured yet.")
-            
-            # GOG Galaxy calls authenticate() automatically when stored_credentials are available.
-            # In that case, fail silently without opening the setup window.
-            if stored_credentials:
-                raise InvalidCredentials()
-            
-            # An empty stored_credentials value indicates a direct Connect action.
-            # Only then open the setup flow.
+            # Galaxy may still hold a session when the external config is missing.
+            # Continue that authentication through setup: rejecting it first leaves
+            # Galaxy in connectionLost even when the subsequent login succeeds.
             return await self._setup_next_step()
 
         self.authentication_client.set_oauth_credentials(self.oauth_credentials)
@@ -480,13 +476,17 @@ class BNetPlugin(Plugin):
                     self.authentication_client.user_details = await self.backend_client.get_user_info()
                 return self.authentication_client.parse_user_details()
             else:
-                return self.authentication_client.authenticate_using_login()
+                # A local confirmation cannot tell whether the user has since
+                # changed the registered callback in Blizzard's portal.
+                return await self._setup_next_step()
         except Exception as e:
             raise e
 
     async def pass_login_credentials(self, step, credentials, cookies):
         setup_credentials = self.setup_server.captured_credentials
         if setup_credentials is not None:
+            if credentials.get('end_uri') != self.setup_server.complete_url:
+                raise InvalidCredentials("Unexpected Battle.net setup completion")
             try:
                 config_path = write_oauth_config(setup_credentials)
             except OAuthConfigError as error:
@@ -497,18 +497,23 @@ class BNetPlugin(Plugin):
             self.oauth_credentials = setup_credentials
             self.authentication_client.set_oauth_credentials(setup_credentials)
             log.info("Saved Battle.net OAuth configuration to %s", config_path)
-            return self.authentication_client.authenticate_using_login()
-
-        if "logout&app=oauth" in credentials['end_uri']:
-            # Restart authentication when 2FA expires.
-            return self.authentication_client.authenticate_using_login()
+            return await self.authentication_client.authenticate_using_login()
 
         if self.authentication_client.attempted_to_set_battle_tag:
             self.authentication_client.user_details = await self.backend_client.get_user_info()
             return self.authentication_client.parse_auth_after_setting_battletag()
 
         cookie_jar = self.authentication_client.parse_cookies(cookies)
-        auth_data = await self.authentication_client.get_auth_data_login(cookie_jar, credentials)
+        try:
+            auth_data = await self.authentication_client.get_auth_data_login(cookie_jar, credentials)
+        except CallbackRejected as error:
+            if error.reason == 'invalid_redirect_uri':
+                message = ("Blizzard rejected the callback address. Check Redirect URLs in the API client "
+                           "that belongs to your saved Client ID. Add the exact local address shown below, "
+                           "click Save, and allow up to 10 minutes. The checkbox does not change your Blizzard settings.")
+            else:
+                message = "Blizzard did not authorize this login. Check the setup below, then sign in again and approve access."
+            return await self._setup_next_step(login_error=message)
 
         try:
             await self.authentication_client.create_session()

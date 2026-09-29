@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from windows_dpapi import DpapiError, protect_current_user, unprotect_current_user
+from consts import REDIRECT_URI
 
 
 SCHEMA_VERSION = 1
@@ -33,6 +34,7 @@ class OAuthConfigError(ValueError):
 class OAuthCredentials:
     client_id: str
     client_secret: str = field(repr=False)
+    redirect_uri: str | None = None
 
 
 def config_file_path(local_app_data: str | os.PathLike[str] | None = None) -> Path:
@@ -50,10 +52,13 @@ def config_file_path(local_app_data: str | os.PathLike[str] | None = None) -> Pa
     return root / CONFIG_RELATIVE_PATH
 
 
-def validate_credentials(client_id, client_secret) -> OAuthCredentials:
+def validate_credentials(client_id, client_secret, redirect_uri=None) -> OAuthCredentials:
+    if redirect_uri not in (None, REDIRECT_URI):
+        raise OAuthConfigError("OAuth callback configuration is invalid")
     return OAuthCredentials(
         _validate_credential(client_id, "Client ID"),
         _validate_credential(client_secret, "Client Secret"),
+        redirect_uri,
     )
 
 
@@ -111,6 +116,7 @@ def read_oauth_config(path: Path | None = None) -> OAuthCredentials | None:
     return validate_credentials(
         credentials.get("client_id"),
         credentials.get("client_secret"),
+        credentials.get("redirect_uri"),
     )
 
 
@@ -133,12 +139,13 @@ def write_oauth_config(
     *,
     path: Path | None = None,
 ) -> Path:
-    credentials = validate_credentials(credentials.client_id, credentials.client_secret)
+    credentials = validate_credentials(credentials.client_id, credentials.client_secret, credentials.redirect_uri)
     target = path or config_file_path()
 
     credential_payload = {
         "client_id": credentials.client_id,
         "client_secret": credentials.client_secret,
+        "redirect_uri": credentials.redirect_uri,
     }
     if sys.platform == "win32":
         try:

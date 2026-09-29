@@ -14,9 +14,8 @@ The steps below are for Windows. Dependencies are bundled; no separate Python in
 * Automatically discovers additional installed games on Windows when Battle.net provides matching installation metadata and a game launch link
 * Launches, installs, and uninstalls games through the Battle.net desktop app
 * Tracks local game time for Battle.net games
-* Uses personal Blizzard developer credentials for OAuth authentication
-* Accepts and saves personal OAuth credentials through a guided setup page inside GOG Galaxy
-* Keeps OAuth configuration outside the plugin folder and protects it with Windows DPAPI
+* Guides you through the required personal Blizzard API client setup inside GOG Galaxy
+* Stores the personal OAuth configuration outside the plugin folder and protects it with Windows DPAPI
 * Supports current game definitions, including Diablo IV
 * Restores detection of classic 32-bit games on 64-bit Windows
 * Handles Warcraft III classic titles without falsely marking them as installed
@@ -59,9 +58,7 @@ Place `manifest.json` directly inside this folder, without an extra nested plugi
 
 ## ⚠️ One-Time OAuth Setup (Required)
 
-Complete this setup before connecting for the first time. The shared `CLIENT_ID` and `CLIENT_SECRET` used by the original community plugin have been revoked by Blizzard. You must register your own free OAuth client through the Blizzard Developer Portal.
-
-If OAuth credentials have not been configured, clicking **Connect** in Galaxy opens the setup guide. Enter your Client ID and Client Secret there, then select **Save and Continue** to open the Battle.net login. You do not need to edit a Python file or restart Galaxy.
+The original shared OAuth credentials were revoked by Blizzard, so every user needs a free personal API client. When you click **Connect**, the plugin opens a guided setup window with the same instructions shown below.
 
 ### 🔑 Registering Your OAuth Client
 
@@ -74,41 +71,51 @@ If OAuth credentials have not been configured, clicking **Connect** in Galaxy op
    | Field | Value |
    | :--- | :--- |
    | **Client Name** | `GOG Galaxy Plugin - MyClient123` |
-   | **Redirect URLs** | `http://friendsofgalaxy.com` |
+   | **Redirect URLs** | `http://127.0.0.1:43821/oauth/callback` |
    | **Service URL** | Select `I do not have a service URL for this client` |
    | **Intended Use** | `Personal GOG Galaxy 2.1+ desktop client plugin to display supported Blizzard games and launch them through the Battle.net desktop app. Used locally on my own PC.` |
 
    The client name must be globally unique across all Blizzard developer accounts. Using only `GOG Galaxy Plugin` will usually fail with a `500 Internal Server Error` because that name has already been registered. Add your username or another unique suffix to the client name.
 
-3. Click **Save** and open the new entry under **Manage Your Clients**.
-4. Open **Manage Client -> Credentials**.
-5. Copy the displayed **Client ID** and reveal the **Client Secret**.
-6. Open **Settings -> Integrations -> Battle.net** in GOG Galaxy and click **Connect**.
-7. Enter the **Client ID** and **Client Secret** in the setup window.
-8. Click **Save and Continue**.
-9. Complete the Battle.net login that opens automatically.
+3. Click **Save**, open the new entry under **Manage Your Clients**, and select **Credentials**.
+4. Copy the **Client ID** and reveal the **Client Secret**.
+5. In GOG Galaxy, open **Settings -> Integrations -> Battle.net** and click **Connect**.
+6. Enter both values, confirm that the Redirect URL is saved in your Blizzard API client, and click **Continue to Battle.net**.
+7. Complete the Battle.net login.
+
+### Existing Users Updating from 2.1.15 or Earlier
+
+You do not need a new API client or new credentials. Open your existing client in the [Blizzard Developer Portal](https://develop.battle.net/access/clients), replace its old Redirect URL with the following address, and click **Save**:
+
+```text
+http://127.0.0.1:43821/oauth/callback
+```
+
+Allow up to 10 minutes for Blizzard to apply the change. On your next sign-in, confirm the address in the plugin setup and continue. Existing valid connections remain active until a new sign-in is required.
+
+The setup cannot read or change your Blizzard portal settings. Its checkbox only confirms that you saved the address. If Blizzard rejects the callback, the plugin returns to the setup with instructions. Check the exact address, save it again, wait up to 10 minutes, and reconnect.
 
 ### 🔒 Credential Storage and Disconnect
 
-The setup creates the Battle.net data directory and an `oauth.json` placeholder automatically. On Windows, the file is stored here:
+The plugin stores its OAuth configuration here:
 
 ```text
 %LOCALAPPDATA%\melcom-creations\GOG Galaxy Integrations\Battle.net\oauth.json
 ```
 
-Before setup is completed, the file contains only a `setup-required` marker and no credentials. After **Save and Continue**, it contains a Windows DPAPI-protected credential block that can be decrypted only by the same Windows user account on the same computer. Neither the Client ID nor the Client Secret remains in `consts.py` or any other plugin file.
+On Windows, the credentials are protected with DPAPI and can be decrypted only by the same Windows user account on the same computer. Your Battle.net password is entered only on Blizzard's login page and is never stored in this file.
 
 > ⚠️ Keep your Client Secret private. Never publish it, send it to another person, or commit it to a public repository. Anyone with this credential could make API requests using your registered client.
 
-Disconnecting the Battle.net integration removes Galaxy's stored Battle.net login session, but it intentionally keeps `oauth.json`. Your personal Blizzard API client can therefore be reused when you connect again, and plugin updates cannot overwrite it.
+Disconnecting the integration or updating the plugin keeps `oauth.json`, so the same API client can be reused later.
 
-To replace or completely remove your personal OAuth configuration, close GOG Galaxy and delete only this file:
+To completely remove your personal OAuth configuration, close GOG Galaxy and delete only this file:
 
 ```text
 %LOCALAPPDATA%\melcom-creations\GOG Galaxy Integrations\Battle.net\oauth.json
 ```
 
-The guided setup appears again the next time you click **Connect**.
+The guided setup appears again the next time you click **Connect**. To use different credentials without deleting the file, select **Use a different Client ID and Client Secret** in the setup window.
 
 ## 🚀 First Start and Initial Sync
 

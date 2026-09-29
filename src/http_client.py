@@ -2,18 +2,20 @@ from definitions import WebsiteAuthData
 import pickle
 import asyncio
 import secrets
+import json
+import re
 
 import requests
 import requests.cookies
-from urllib.parse import urlparse, parse_qs
-from functools import partial
+from urllib.parse import urlencode, urlsplit, urljoin
 from typing import Any, Dict, Optional
 
-from galaxy.api.errors import InvalidCredentials
+from galaxy.api.errors import InvalidCredentials, BackendTimeout, NetworkError
 from galaxy.api.types import Authentication, NextStep
 
 from consts import REDIRECT_URI, FIREFOX_AGENT
 from oauth_config import OAuthCredentials
+from oauth_callback import CallbackError, CallbackRejected, LocalOAuthCallbackServer, callback_code
 from region_helper import _found_region, guess_region
 
 
@@ -29,6 +31,8 @@ class AuthenticatedHttpClient(object):
         self.attempted_to_set_battle_tag = None
         self.auth_data: Optional[WebsiteAuthData] = None
         self._oauth_state = None
+        self.callback_server = LocalOAuthCallbackServer()
+        self._refresh_lock = asyncio.Lock()
 
     def set_oauth_credentials(self, credentials: OAuthCredentials) -> None:
         self._oauth_credentials = credentials
@@ -62,6 +66,8 @@ class AuthenticatedHttpClient(object):
         return self.creds
 
     async def shutdown(self):
+        self._oauth_state = None
+        await self.callback_server.stop()
         if self.session:
             self.session.close()
             self.session = None
@@ -72,68 +78,30 @@ class AuthenticatedHttpClient(object):
             access_token=stored_credentials['access_token'],
             region=stored_credentials['region'] if 'region' in stored_credentials else 'eu'
         )
+        self.auth_data = auth_data
 
         # Load the cached user details when available.
         if 'user_details_cache' in stored_credentials:
             self.user_details = stored_credentials['user_details_cache']
-            self.auth_data = auth_data
         return auth_data
 
     async def get_auth_data_login(self, cookie_jar, credentials):
-        oauth_credentials = self._require_oauth_credentials()
-        code = parse_qs(urlparse(credentials['end_uri']).query)["code"][0]
-        loop = asyncio.get_running_loop()
-
-        s = requests.Session()
-        url = f"{self.blizzard_oauth_url}/token"
-        data = {
-            "grant_type": "authorization_code",
-            "redirect_uri": REDIRECT_URI,
-            "client_id": oauth_credentials.client_id,
-            "client_secret": oauth_credentials.client_secret,
-            "code": code
-        }
-        response = await loop.run_in_executor(None, partial(s.post, url, data=data))
-        response.raise_for_status()
-        result = response.json()
-        access_token = result["access_token"]
+        try:
+            code = self.callback_server.validate(credentials.get('end_uri', ''))
+        except CallbackRejected:
+            raise
+        except CallbackError as error:
+            raise InvalidCredentials(str(error)) from None
+        finally:
+            self._oauth_state = None
+            await self.callback_server.stop()
+        access_token = await asyncio.get_running_loop().run_in_executor(
+            None, self._exchange_code, code)
         self.auth_data = WebsiteAuthData(cookie_jar=cookie_jar, access_token=access_token, region=self.region)
         return self.auth_data
 
-    async def refresh_access_token_with_cookies(self) -> str:
-        """
-        Silently intercepts the OAuth redirect chain using stored session cookies,
-        extracts the fresh authorization code, and exchanges it for a new access token.
-        This keeps the user logged in permanently across GOG Galaxy restarts.
-        """
+    def _exchange_code(self, code):
         oauth_credentials = self._require_oauth_credentials()
-        loop = asyncio.get_running_loop()
-        headers = {
-            'User-Agent': FIREFOX_AGENT
-        }
-        url = f"{self.blizzard_accounts_url}:443/oauth2/authorization/account-settings"
-        
-        # Request the account settings page with the stored cookies.
-        session = self._require_session()
-        response = await loop.run_in_executor(
-            None, 
-            partial(session.get, url, headers=headers, allow_redirects=True, timeout=self.timeout)
-        )
-        
-        # Inspect the redirect chain for the authorization code.
-        code = None
-        for resp in [response] + response.history:
-            parsed = urlparse(resp.url)
-            query = parse_qs(parsed.query)
-            if "code" in query:
-                code = query["code"][0]
-                break
-                
-        if not code:
-            raise InvalidCredentials("No authorization code found in cookie refresh flow")
-            
-        # Exchange the authorization code for an OAuth access token.
-        token_url = f"{self.blizzard_oauth_url}/token"
         data = {
             "grant_type": "authorization_code",
             "redirect_uri": REDIRECT_URI,
@@ -141,39 +109,76 @@ class AuthenticatedHttpClient(object):
             "client_secret": oauth_credentials.client_secret,
             "code": code
         }
-        
-        token_response = await loop.run_in_executor(
-            None, 
-            partial(session.post, token_url, data=data, timeout=self.timeout)
-        )
-        token_response.raise_for_status()
-        result = token_response.json()
-        
-        # Update the active session credentials after token refresh.
-        new_token = result["access_token"]
-        auth_data = self._require_auth_data()
-        auth_data.access_token = new_token
-        session.headers["Authorization"] = f"Bearer {new_token}"
-        
-        # Persist the refreshed credentials in GOG Galaxy storage.
-        self.refresh_credentials()
-        return new_token
+        try:
+            with requests.Session() as session:
+                response = session.post(f"{self.blizzard_oauth_url}/token", data=data,
+                                        timeout=self.timeout, allow_redirects=False)
+                if response.status_code != 200:
+                    raise InvalidCredentials("Battle.net login could not be completed; check the registered local Redirect URL")
+                result = response.json()
+                token = result.get('access_token') if isinstance(result, dict) else None
+                if not isinstance(token, str) or not token:
+                    raise InvalidCredentials("Battle.net did not return an access token")
+                return token
+        except requests.Timeout:
+            raise BackendTimeout() from None
+        except requests.RequestException:
+            raise NetworkError() from None
+        except ValueError:
+            raise InvalidCredentials("Invalid Battle.net token response") from None
 
-    # Prefer live user data when the token remains valid.
-    # Fall back to the stored usertag and name if token validation fails.
-    
+    async def refresh_access_token_with_cookies(self) -> str:
+        """Follow only Blizzard HTTPS redirects; consume the local callback without requesting it."""
+        if self._require_oauth_credentials().redirect_uri != REDIRECT_URI:
+            raise InvalidCredentials("Reconnect to configure the local Battle.net callback")
+        async with self._refresh_lock:
+            state = secrets.token_urlsafe(32)
+            code = await asyncio.get_running_loop().run_in_executor(None, self._refresh_code, state)
+            new_token = await asyncio.get_running_loop().run_in_executor(None, self._exchange_code, code)
+            self._require_auth_data().access_token = new_token
+            self._require_session().headers["Authorization"] = f"Bearer {new_token}"
+            self.refresh_credentials()
+            return new_token
+
+    def _refresh_code(self, state):
+        url = self._authorization_url(state)
+        allowed_hosts = {urlsplit(self.blizzard_oauth_url).hostname,
+                         urlsplit(self.blizzard_accounts_url).hostname,
+                         urlsplit(self.blizzard_battlenet_login_url).hostname}
+        if self.region != 'cn':
+            allowed_hosts.update({'oauth.battle.net', 'account.battle.net', 'account.blizzard.com'})
+        try:
+            with requests.Session() as session:
+                session.cookies.update(self._require_session().cookies)
+                session.headers['User-Agent'] = FIREFOX_AGENT
+                for _ in range(10):
+                    parsed = urlsplit(url)
+                    if (parsed.scheme != 'https' or parsed.hostname not in allowed_hosts
+                            or parsed.port not in (None, 443) or parsed.username or parsed.password):
+                        raise InvalidCredentials("Unexpected Battle.net login redirect; please reconnect")
+                    response = session.get(url, allow_redirects=False, timeout=self.timeout)
+                    if response.status_code not in (301, 302, 303, 307, 308):
+                        raise InvalidCredentials("Battle.net requires an interactive login; please reconnect")
+                    location = response.headers.get('Location')
+                    if not location:
+                        raise InvalidCredentials("Missing Battle.net login redirect")
+                    url = urljoin(url, location)
+                    if urlsplit(url).hostname == '127.0.0.1':
+                        return callback_code(url, state)
+        except requests.Timeout:
+            raise BackendTimeout() from None
+        except requests.RequestException:
+            raise NetworkError() from None
+        except ValueError:
+            raise InvalidCredentials("Invalid Battle.net login redirect; please reconnect") from None
+        raise InvalidCredentials("Battle.net login redirect limit reached; please reconnect")
+
     def validate_auth_status(self, auth_status):
-        if 'error' in auth_status:
-            if not self.user_details:
-                raise InvalidCredentials()
-            else:
-                return False
-        elif not self.user_details:
+        # Cached profile data is not evidence that a login is still valid.
+        if (not isinstance(auth_status, dict) or 'error' in auth_status
+                or 'IS_AUTHENTICATED_FULLY' not in auth_status.get('authorities', [])):
             raise InvalidCredentials()
-        else:
-            if not ("authorities" in auth_status and "IS_AUTHENTICATED_FULLY" in auth_status["authorities"]):
-                raise InvalidCredentials()
-            return True
+        return True
 
     def parse_user_details(self):
         user_details = self._require_user_details()
@@ -181,25 +186,56 @@ class AuthenticatedHttpClient(object):
             raise InvalidCredentials()
         return Authentication(user_details["id"], user_details["battletag"])
 
-    def authenticate_using_login(self):
+    def _authorization_url(self, state):
         oauth_credentials = self._require_oauth_credentials()
-        self._oauth_state = secrets.token_hex(16)
-        _URI = (
-            f'{self.blizzard_oauth_url}/authorize'
-            f'?response_type=code'
-            f'&client_id={oauth_credentials.client_id}'
-            f'&redirect_uri={REDIRECT_URI}'
-            f'&scope=wow.profile+sc2.profile'
-            f'&state={self._oauth_state}'
-        )
+        return f'{self.blizzard_oauth_url}/authorize?' + urlencode({
+            'response_type': 'code', 'client_id': oauth_credentials.client_id,
+            'redirect_uri': REDIRECT_URI, 'scope': 'wow.profile sc2.profile', 'state': state})
+
+    async def authenticate_using_login(self):
+        if self._require_oauth_credentials().redirect_uri != REDIRECT_URI:
+            raise InvalidCredentials("Configure the local Battle.net callback first")
+        self.attempted_to_set_battle_tag = False
+        self._oauth_state = secrets.token_urlsafe(32)
+        try:
+            await self.callback_server.start(self._oauth_state)
+        except OSError:
+            self._oauth_state = None
+            raise InvalidCredentials("Local login port 43821 is unavailable. Close other Battle.net integration login windows and try again.") from None
         auth_params = {
             "window_title": "Login to Battle.net",
             "window_width": 540,
             "window_height": 700,
-            "start_uri": _URI,
-            "end_uri_regex": r"(.*logout&app=oauth.*)|(^http://friendsofgalaxy\.com.*)"
+            "start_uri": self._authorization_url(self._oauth_state),
+            "end_uri_regex": self.callback_server.end_uri_regex
         }
-        return NextStep("web_session", auth_params)
+        error_uri = REDIRECT_URI + '?' + urlencode({
+            'state': self._oauth_state, 'error': 'invalid_redirect_uri'})
+        # Read only the known error message, never login fields or cookies.
+        script = r"""(function () {
+            if (window.__galaxyCallbackErrorWatcher) return;
+            window.__galaxyCallbackErrorWatcher = true;
+            var finished = false;
+            function inspect() {
+                if (finished || !document.body) return;
+                var message = (document.body.innerText || '').replace(/\s+/g, ' ').toLowerCase();
+                if (message.indexOf('invalid grant type or callback url is not valid') !== -1) {
+                    finished = true;
+                    window.location.replace(__ERROR_URI__);
+                }
+            }
+            inspect();
+            if (!finished) {
+                var watcher = new MutationObserver(inspect);
+                watcher.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
+                window.setTimeout(function () { watcher.disconnect(); }, 600000);
+            }
+        })();""".replace('__ERROR_URI__', json.dumps(error_uri))
+        origins = {self.blizzard_oauth_url.split('/oauth')[0], self.blizzard_accounts_url}
+        if self.region != 'cn':
+            origins.update({'https://oauth.battle.net', 'https://account.battle.net', 'https://account.blizzard.com'})
+        scripts = {'^' + re.escape(origin) + r'(?::443)?/': [script] for origin in origins}
+        return NextStep("web_session", auth_params, js=scripts)
 
     def parse_auth_after_setting_battletag(self):
         creds = self._require_creds()

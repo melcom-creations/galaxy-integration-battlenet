@@ -7,6 +7,7 @@ from typing import Optional
 
 from aiohttp import web
 
+from consts import REDIRECT_URI
 from oauth_config import OAuthConfigError, OAuthCredentials, validate_credentials
 
 
@@ -33,12 +34,16 @@ class LocalSetupServer:
         self._nonce: Optional[str] = None
         self.port: Optional[int] = None
         self.captured_credentials: Optional[OAuthCredentials] = None
+        self._existing_credentials: Optional[OAuthCredentials] = None
+        self._login_error: Optional[str] = None
 
-    async def start(self) -> int:
+    async def start(self, existing_credentials: Optional[OAuthCredentials] = None, login_error=None) -> int:
         if self._runner is not None and self.port is not None:
             return self.port
 
         self._nonce = secrets.token_urlsafe(32)
+        self._existing_credentials = existing_credentials
+        self._login_error = login_error
         self.captured_credentials = None
         app = web.Application(client_max_size=8192)
         app.router.add_get(FORM_PATH, self._handle_form)
@@ -63,6 +68,8 @@ class LocalSetupServer:
 
     async def stop(self) -> None:
         self.captured_credentials = None
+        self._existing_credentials = None
+        self._login_error = None
         if self._runner is not None:
             await self._runner.cleanup()
         self._runner = None
@@ -86,9 +93,8 @@ class LocalSetupServer:
     def end_uri_regex(self) -> str:
         return "^" + re.escape(self.complete_url) + "$"
 
-    @staticmethod
-    def _is_loopback_request(request: web.Request) -> bool:
-        return request.remote == "127.0.0.1"
+    def _is_loopback_request(self, request: web.Request) -> bool:
+        return request.remote == "127.0.0.1" and request.host == f"127.0.0.1:{self.port}"
 
     @staticmethod
     def _response_headers() -> dict[str, str]:
@@ -96,11 +102,11 @@ class LocalSetupServer:
             "Cache-Control": "no-store",
             "Pragma": "no-cache",
             "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
             "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; "
-                "font-src https://fonts.gstatic.com; script-src 'unsafe-inline'; "
+                "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
                 "connect-src 'self'; "
-                "form-action 'self'; base-uri 'none'"
+                "form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
             ),
         }
 
@@ -110,9 +116,17 @@ class LocalSetupServer:
         template_path = Path(__file__).parent / "setup.html"
         try:
             page = template_path.read_text(encoding="utf-8")
+            hidden_section = "NEW_ONLY" if self._existing_credentials is not None else "EXISTING_ONLY"
+            page = re.sub(r"<!-- " + hidden_section + r" -->.*?<!-- /" + hidden_section + r" -->",
+                          "", page, flags=re.S)
         except (OSError, UnicodeError) as error:
             raise web.HTTPInternalServerError(text="The setup page could not be loaded") from error
         page = page.replace("__NONCE__", html.escape(self._nonce or "", quote=True))
+        page = page.replace("__REDIRECT_URI__", html.escape(REDIRECT_URI, quote=True))
+        page = page.replace("__CREDENTIAL_ATTRIBUTES__", 'disabled hidden' if self._existing_credentials else '')
+        message = ('<div class="warning" role="alert"><div><strong>Login could not be completed.</strong><p>'
+                   + html.escape(self._login_error) + '</p></div></div>') if self._login_error else ''
+        page = page.replace("__LOGIN_ERROR__", message)
         return web.Response(
             text=page,
             content_type="text/html",
@@ -130,10 +144,16 @@ class LocalSetupServer:
             or not secrets.compare_digest(submitted_nonce, self._nonce)
         ):
             raise web.HTTPForbidden(text="Invalid setup session")
+        if data.get("redirect_confirmed") != "yes":
+            return web.Response(text="Save the local Redirect URL in your Blizzard API client first.",
+                                status=400, headers=self._response_headers())
         try:
+            existing = self._existing_credentials
+            use_saved = existing is not None and data.get('replace_credentials') != 'yes'
             self.captured_credentials = validate_credentials(
-                data.get("client_id"),
-                data.get("client_secret"),
+                existing.client_id if use_saved else data.get("client_id"),
+                existing.client_secret if use_saved else data.get("client_secret"),
+                REDIRECT_URI,
             )
         except OAuthConfigError as error:
             return web.Response(
