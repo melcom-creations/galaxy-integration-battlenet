@@ -466,14 +466,27 @@ class BNetPlugin(Plugin):
                 auth_data = self.authentication_client.process_stored_credentials(stored_credentials)
                 try:
                     await self.authentication_client.create_session()
-                    await self.backend_client.refresh_cookies()
                     auth_status = await self.backend_client.validate_access_token(auth_data.access_token)
                 except (BackendNotAvailable, BackendError, NetworkError, UnknownError, BackendTimeout) as e:
                     raise e
                 except Exception:
                     raise InvalidCredentials()
-                if self.authentication_client.validate_auth_status(auth_status):
-                    self.authentication_client.user_details = await self.backend_client.get_user_info()
+                try:
+                    self.authentication_client.validate_auth_status(auth_status)
+                except InvalidCredentials:
+                    # Token validation does not use the backend's automatic 401
+                    # retry. Renew here before rejecting a restored session.
+                    log.info("Stored Battle.net token is invalid; attempting session renewal.")
+                    try:
+                        new_token = await self.authentication_client.refresh_access_token_with_cookies()
+                        auth_status = await self.backend_client.validate_access_token(new_token)
+                        self.authentication_client.validate_auth_status(auth_status)
+                    except InvalidCredentials:
+                        log.info("Battle.net session renewal requires a new sign-in.")
+                        return await self._setup_next_step(
+                            login_error="Your saved Battle.net session could not be renewed. Continue below to sign in again.")
+                    log.info("Battle.net session renewed successfully.")
+                self.authentication_client.user_details = await self.backend_client.get_user_info()
                 return self.authentication_client.parse_user_details()
             else:
                 # A local confirmation cannot tell whether the user has since

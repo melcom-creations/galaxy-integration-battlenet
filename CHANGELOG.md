@@ -4,6 +4,14 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.17-64bit
+
+### Fixed in Version 2.1.17-64bit
+
+- **Automatic reconnection:** When a saved access token is no longer valid, the plugin now attempts session renewal during Galaxy startup. If Battle.net requires a new sign-in, the plugin opens the guided setup instead of reporting an immediate login failure.
+
+---
+
 ## Version 2.1.16-64bit
 
 ### Changed in Version 2.1.16-64bit
