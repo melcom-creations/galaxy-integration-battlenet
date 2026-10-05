@@ -1,6 +1,6 @@
 import os
 import sys
-
+                  
 # Add the bundled Modules directory to sys.path so local dependencies can be imported.
 _plugin_dir = os.path.dirname(os.path.abspath(__file__))
 _modules_dir = os.path.join(_plugin_dir, 'modules')
@@ -104,7 +104,6 @@ class BNetPlugin(Plugin):
         self.setup_server = LocalSetupServer()
         self.authentication_client = AuthenticatedHttpClient(self, self.oauth_credentials)
         self.backend_client = BackendClient(self, self.authentication_client)
-
         self.watched_running_games = set()
         self._watched_running_games_lock = asyncio.Lock()
         self._imported_game_ids = set()
@@ -487,13 +486,19 @@ class BNetPlugin(Plugin):
                             login_error="Your saved Battle.net session could not be renewed. Continue below to sign in again.")
                     log.info("Battle.net session renewed successfully.")
                 self.authentication_client.user_details = await self.backend_client.get_user_info()
-                return self.authentication_client.parse_user_details()
+                return await self._finish_authentication()
             else:
                 # A local confirmation cannot tell whether the user has since
                 # changed the registered callback in Blizzard's portal.
                 return await self._setup_next_step()
         except Exception as e:
             raise e
+
+    async def _finish_authentication(self):
+        # Library website access is independent of the valid OAuth login.
+        # It is restored silently during the subsequent library import.
+        log.info('Battle.net OAuth authentication completed; library access is checked separately.')
+        return self.authentication_client.parse_user_details()
 
     async def pass_login_credentials(self, step, credentials, cookies):
         setup_credentials = self.setup_server.captured_credentials
@@ -514,7 +519,8 @@ class BNetPlugin(Plugin):
 
         if self.authentication_client.attempted_to_set_battle_tag:
             self.authentication_client.user_details = await self.backend_client.get_user_info()
-            return self.authentication_client.parse_auth_after_setting_battletag()
+            self.authentication_client.parse_auth_after_setting_battletag()
+            return await self._finish_authentication()
 
         cookie_jar = self.authentication_client.parse_cookies(cookies)
         try:
@@ -546,7 +552,28 @@ class BNetPlugin(Plugin):
 
         self.authentication_client.set_credentials()
 
-        return self.authentication_client.parse_battletag()
+        result = self.authentication_client.parse_battletag()
+        if isinstance(result, NextStep):
+            return result
+        return await self._finish_authentication()
+
+    def _remember_account_games(self, category, games):
+        user_id = str((self.authentication_client.user_details or {}).get('id', ''))
+        if user_id:
+            self._save_cache('account_games_' + category, {
+                'user_id': user_id,
+                'games': [[game.uid, license_type.name] for game, license_type in games.items()],
+            })
+
+    def _remembered_account_games(self, category):
+        try:
+            snapshot = self._load_cache('account_games_' + category)
+            user_id = str((self.authentication_client.user_details or {}).get('id', ''))
+            if not user_id or not isinstance(snapshot, dict) or snapshot.get('user_id') != user_id:
+                return None
+            return {Blizzard[uid]: LicenseType[license_name] for uid, license_name in snapshot['games']}
+        except (ValueError, TypeError, KeyError):
+            return None
 
     async def get_owned_games(self):
         if not self.authentication_client.is_authenticated():
@@ -606,24 +633,34 @@ class BNetPlugin(Plugin):
         # fall back to locally installed games from the Battle.net database.
         try:
             battlenet_games = _parse_battlenet_games(await self.backend_client.get_owned_games(), cn)
+            self._remember_account_games('standard', battlenet_games)
             owned_games.update(battlenet_games)
-        except (AuthenticationRequired, BackendError, UnknownError) as e:
-            log.warning(f"Could not fetch owned games from Blizzard API ({e}), falling back to local games only.")
+        except (AuthenticationRequired, BackendError, UnknownError, NetworkError, BackendTimeout, BackendNotAvailable) as e:
+            remembered = self._remembered_account_games('standard')
+            if remembered is not None:
+                owned_games.update(remembered)
+                log.warning('Battle.net account library unavailable; retaining saved account games.')
+            else:
+                log.warning('Battle.net account library unavailable; using locally detected games.')
             installed = self.local_client.get_installed_games()
             for uid, installed_game in installed.items():
                 if isinstance(installed_game.info, (DiscoveredGame, WoWVariantGame)):
                     continue  # Merged below with an unknown license, not a purchase.
                 try:
                     blizz_game = Blizzard[uid]
-                    owned_games[blizz_game] = LicenseType.SinglePurchase
+                    owned_games.setdefault(blizz_game, LicenseType.SinglePurchase)
                 except KeyError:
                     log.warning(f"Skipping locally installed game with unknown uid: {uid}")
 
         try:
             classic_games = _parse_classic_games(await self.backend_client.get_owned_classic_games())
+            self._remember_account_games('classic', classic_games)
             owned_games.update(classic_games)
-        except (AuthenticationRequired, BackendError, UnknownError) as e:
-            log.warning(f"Could not fetch classic games from Blizzard API ({e}), skipping.")
+        except (AuthenticationRequired, BackendError, UnknownError, NetworkError, BackendTimeout, BackendNotAvailable) as e:
+            remembered = self._remembered_account_games('classic')
+            if remembered is not None:
+                owned_games.update(remembered)
+                log.warning('Battle.net classic library unavailable; retaining saved account games.')
 
         for game in Blizzard.try_for_free_games(cn):
             if game not in owned_games:

@@ -2,6 +2,7 @@ import asyncio
 import requests
 import functools
 import logging
+import time
 
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
@@ -22,6 +23,8 @@ class BackendClient(object):
     def __init__(self, plugin, authentication_client):
         self._plugin = plugin
         self._authentication_client = authentication_client
+        self._account_lock = asyncio.Lock()
+        self._account_retry_after = 0.0
 
     async def _authenticated_request(self, method, url, data=None, json=True, headers=None, ignore_failure=False):
         """
@@ -98,12 +101,35 @@ class BackendClient(object):
         return await self.do_request("GET", details_url)
 
     async def get_owned_games(self):
-        games_url = f"{self._authentication_client.blizzard_accounts_url}/api/games-and-subs"
-        return await self._authenticated_request("GET", games_url)
+        return await self._account_library_request('games-and-subs')
 
     async def get_owned_classic_games(self):
-        games_url = f"{self._authentication_client.blizzard_accounts_url}/api/classic-games"
-        return await self._authenticated_request("GET", games_url)
+        return await self._account_library_request('classic-games')
+
+    async def _account_library_request(self, endpoint):
+        # Account website sessions are independent of the personal OAuth client.
+        # A website 401 does not mean the plugin's access token has expired.
+        client = self._authentication_client
+        origin = (client.blizzard_accounts_url if client.region == 'cn'
+                  else 'https://account.battle.net')
+        headers = {'User-Agent': FIREFOX_AGENT, 'Authorization': None}
+        url = f'{origin}/api/{endpoint}'
+        async with self._account_lock:
+            try:
+                return await self.do_request('GET', url, headers=headers)
+            except AuthenticationRequired:
+                if client.region == 'cn' or time.monotonic() < self._account_retry_after:
+                    raise
+                # Bound retries when the website requires interactive login.
+                self._account_retry_after = time.monotonic() + 300
+                renewed = await asyncio.get_running_loop().run_in_executor(
+                    None, client.refresh_account_website_session)
+                if not renewed:
+                    raise
+                client.refresh_credentials()
+                self._account_retry_after = 0.0
+                logging.info('Battle.net account session restored automatically and saved.')
+                return await self.do_request('GET', url, headers=headers)
 
     async def validate_access_token(self, access_token):
         token_url = f"{self._authentication_client.blizzard_oauth_url}/check_token"

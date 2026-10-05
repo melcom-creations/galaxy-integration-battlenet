@@ -127,6 +127,8 @@ For the first synchronization after installing, updating, or configuring the plu
 4. Open the account menu in the top-right corner and select **Sync integrations**.
 5. Wait until the synchronization has finished.
 
+The plugin uses your Battle.net login to restore access to the account library automatically. If the account website still requires a fresh login, the plugin stays connected and uses saved account games when available, otherwise locally detected games and its supported free-to-play catalog. Reconnect the integration if you need to refresh account ownership in that case.
+
 ## 🎮 Game Support and Library Notes
 
 ### 🔎 Automatic Discovery of Additional Games

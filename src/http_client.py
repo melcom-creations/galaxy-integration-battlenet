@@ -4,6 +4,7 @@ import asyncio
 import secrets
 import json
 import re
+import logging
 
 import requests
 import requests.cookies
@@ -17,6 +18,8 @@ from consts import REDIRECT_URI, FIREFOX_AGENT
 from oauth_config import OAuthCredentials
 from oauth_callback import CallbackError, CallbackRejected, LocalOAuthCallbackServer, callback_code
 from region_helper import _found_region, guess_region
+
+log = logging.getLogger(__name__)
 
 
 class AuthenticatedHttpClient(object):
@@ -114,10 +117,12 @@ class AuthenticatedHttpClient(object):
                 response = session.post(f"{self.blizzard_oauth_url}/token", data=data,
                                         timeout=self.timeout, allow_redirects=False)
                 if response.status_code != 200:
+                    log.warning("Battle.net token exchange rejected: HTTP %s", response.status_code)
                     raise InvalidCredentials("Battle.net login could not be completed; check the registered local Redirect URL")
                 result = response.json()
                 token = result.get('access_token') if isinstance(result, dict) else None
                 if not isinstance(token, str) or not token:
+                    log.warning("Battle.net token exchange returned no access token.")
                     raise InvalidCredentials("Battle.net did not return an access token")
                 return token
         except requests.Timeout:
@@ -125,15 +130,20 @@ class AuthenticatedHttpClient(object):
         except requests.RequestException:
             raise NetworkError() from None
         except ValueError:
+            log.warning("Battle.net token exchange returned invalid JSON.")
             raise InvalidCredentials("Invalid Battle.net token response") from None
 
     async def refresh_access_token_with_cookies(self) -> str:
         """Follow only Blizzard HTTPS redirects; consume the local callback without requesting it."""
         if self._require_oauth_credentials().redirect_uri != REDIRECT_URI:
+            log.warning("Battle.net renewal stopped: saved callback configuration requires migration.")
             raise InvalidCredentials("Reconnect to configure the local Battle.net callback")
         async with self._refresh_lock:
+            log.info("Battle.net renewal started with %d stored cookies.",
+                     len(self._require_session().cookies))
             state = secrets.token_urlsafe(32)
             code = await asyncio.get_running_loop().run_in_executor(None, self._refresh_code, state)
+            log.info("Battle.net renewal authorization completed; exchanging code.")
             new_token = await asyncio.get_running_loop().run_in_executor(None, self._exchange_code, code)
             self._require_auth_data().access_token = new_token
             self._require_session().headers["Authorization"] = f"Bearer {new_token}"
@@ -147,31 +157,113 @@ class AuthenticatedHttpClient(object):
                          urlsplit(self.blizzard_battlenet_login_url).hostname}
         if self.region != 'cn':
             allowed_hosts.update({'oauth.battle.net', 'account.battle.net', 'account.blizzard.com'})
+            allowed_hosts.add(f'{self.region}.account.battle.net')
         try:
             with requests.Session() as session:
                 session.cookies.update(self._require_session().cookies)
+                # Older versions flattened browser cookies across domains. These
+                # server session IDs then reach the wrong host and can produce
+                # an OAuth error page instead of following the remembered login.
+                self._remove_legacy_server_sessions(session.cookies)
+                session.headers['User-Agent'] = FIREFOX_AGENT
+                for hop in range(10):
+                    parsed = urlsplit(url)
+                    if (parsed.scheme != 'https' or parsed.hostname not in allowed_hosts
+                            or parsed.port not in (None, 443) or parsed.username or parsed.password):
+                        # Log a bounded DNS hostname only, never the redirect URL.
+                        hostname = parsed.hostname or ''
+                        safe_host = hostname if re.fullmatch(r'[a-zA-Z0-9.-]{1,253}', hostname) else '<invalid>'
+                        log.warning("Battle.net renewal stopped: redirect outside permitted HTTPS origins (host=%s).",
+                                    safe_host)
+                        raise InvalidCredentials("Unexpected Battle.net login redirect; please reconnect")
+                    response = session.get(url, allow_redirects=False, timeout=self.timeout)
+                    # Only log status and a verified Blizzard hostname, never URLs,
+                    # query parameters, response bodies or cookie values.
+                    log.info("Battle.net renewal hop %d: host=%s HTTP=%s",
+                             hop + 1, parsed.hostname, response.status_code)
+                    if response.status_code not in (301, 302, 303, 307, 308):
+                        log.warning("Battle.net renewal stopped: response did not continue the authorization redirect.")
+                        raise InvalidCredentials("Battle.net requires an interactive login; please reconnect")
+                    location = response.headers.get('Location')
+                    if not location:
+                        log.warning("Battle.net renewal stopped: redirect has no Location header.")
+                        raise InvalidCredentials("Missing Battle.net login redirect")
+                    url = urljoin(url, location)
+                    if urlsplit(url).hostname == '127.0.0.1':
+                        try:
+                            code = callback_code(url, state)
+                        except CallbackError:
+                            log.warning("Battle.net renewal stopped: local callback validation failed.")
+                            raise
+                        # Keep cookies rotated by the successful login redirects.
+                        # refresh_credentials persists them after token exchange.
+                        saved_cookies = self._require_session().cookies
+                        self._remove_legacy_server_sessions(saved_cookies)
+                        saved_cookies.update(session.cookies)
+                        return code
+        except requests.Timeout:
+            log.warning("Battle.net renewal stopped: request timed out.")
+            raise BackendTimeout() from None
+        except requests.RequestException:
+            log.warning("Battle.net renewal stopped: network request failed.")
+            raise NetworkError() from None
+        except ValueError:
+            log.warning("Battle.net renewal stopped: invalid redirect or callback.")
+            raise InvalidCredentials("Invalid Battle.net login redirect; please reconnect") from None
+        log.warning("Battle.net renewal stopped: redirect limit reached.")
+        raise InvalidCredentials("Battle.net login redirect limit reached; please reconnect")
+
+    def refresh_account_website_session(self):
+        """Restore account website access using the existing login cookies only."""
+        if self.region == 'cn':
+            return False
+        origin = 'https://account.battle.net'
+        allowed_hosts = {'account.battle.net', 'oauth.battle.net',
+                         f'{self.region}.battle.net', f'{self.region}.account.battle.net'}
+        url = origin + '/oauth2/authorization/account-settings'
+        try:
+            with requests.Session() as session:
+                session.cookies.update(self._require_session().cookies)
+                self._remove_legacy_server_sessions(session.cookies)
                 session.headers['User-Agent'] = FIREFOX_AGENT
                 for _ in range(10):
                     parsed = urlsplit(url)
                     if (parsed.scheme != 'https' or parsed.hostname not in allowed_hosts
                             or parsed.port not in (None, 443) or parsed.username or parsed.password):
-                        raise InvalidCredentials("Unexpected Battle.net login redirect; please reconnect")
+                        log.warning('Battle.net account session renewal stopped: unexpected redirect.')
+                        return False
                     response = session.get(url, allow_redirects=False, timeout=self.timeout)
-                    if response.status_code not in (301, 302, 303, 307, 308):
-                        raise InvalidCredentials("Battle.net requires an interactive login; please reconnect")
-                    location = response.headers.get('Location')
-                    if not location:
-                        raise InvalidCredentials("Missing Battle.net login redirect")
-                    url = urljoin(url, location)
-                    if urlsplit(url).hostname == '127.0.0.1':
-                        return callback_code(url, state)
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        location = response.headers.get('Location')
+                        if not location:
+                            return False
+                        url = urljoin(url, location)
+                        continue
+                    # A password/challenge page is not a completed account login.
+                    if (response.status_code != 200 or parsed.hostname != 'account.battle.net'
+                            or parsed.path not in ('/', '/overview', '/overview/', '/games', '/games/')):
+                        log.info('Battle.net account session could not be restored silently; keeping plugin connected.')
+                        return False
+                    verification = session.get(origin + '/api/games-and-subs',
+                                               allow_redirects=False, timeout=self.timeout)
+                    if verification.status_code != 200:
+                        return False
+                    data = verification.json()
+                    if not isinstance(data, dict) or not isinstance(data.get('gameAccounts'), list):
+                        return False
+                    saved = self._require_session().cookies
+                    self._remove_legacy_server_sessions(saved)
+                    saved.update(session.cookies)
+                    return True
+                log.warning('Battle.net account session renewal stopped: redirect limit reached.')
+                return False
         except requests.Timeout:
             raise BackendTimeout() from None
         except requests.RequestException:
             raise NetworkError() from None
         except ValueError:
-            raise InvalidCredentials("Invalid Battle.net login redirect; please reconnect") from None
-        raise InvalidCredentials("Battle.net login redirect limit reached; please reconnect")
+            log.warning('Battle.net account session renewal returned an invalid response.')
+            return False
 
     def validate_auth_status(self, auth_status):
         # Cached profile data is not evidence that a login is still valid.
@@ -248,11 +340,22 @@ class AuthenticatedHttpClient(object):
         self._plugin.store_credentials(creds)
         return Authentication(user_details["id"], battletag)
 
+    @staticmethod
+    def _remove_legacy_server_sessions(cookie_jar):
+        for cookie in list(cookie_jar):
+            if not cookie.domain and cookie.name in ('JSESSIONID', 'SESSIONID'):
+                cookie_jar.clear(cookie.domain, cookie.path, cookie.name)
+
     def parse_cookies(self, cookies):
         if not self.region:
             self.region = _found_region(cookies)
-        new_cookies = {cookie["name"]: cookie["value"] for cookie in cookies}
-        return requests.cookies.cookiejar_from_dict(new_cookies)
+        cookie_jar = requests.cookies.RequestsCookieJar()
+        for cookie in cookies:
+            cookie_jar.set_cookie(requests.cookies.create_cookie(
+                cookie['name'], cookie['value'],
+                domain=cookie.get('domain') or '', path=cookie.get('path') or '/',
+                secure=bool(cookie.get('secure', False))))
+        return cookie_jar
 
     def set_credentials(self):
         auth_data = self._require_auth_data()

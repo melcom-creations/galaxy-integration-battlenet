@@ -4,6 +4,22 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.18-64bit
+
+### Fixed in Version 2.1.18-64bit
+
+- **Session renewal:** Allows Battle.net's regional account login redirect, which was previously blocked during automatic reconnection.
+- **Saved login sessions:** Preserves cookie domains and paths, repairs conflicting server-session cookies from older versions during renewal, and saves refreshed cookies after successful renewal.
+- **Library requests:** Uses the current Battle.net account address and no longer renews the plugin's OAuth session when only the account website rejects a library request.
+
+### Changed in Version 2.1.18-64bit
+
+- **Account library access:** Uses the existing Battle.net login cookies to establish the account website session automatically when needed for importing games.
+- **Saved account library:** Keeps a saved copy of successfully imported account games for use when the account website is unavailable.
+- **Connection diagnostics:** Logs now identify where automatic session renewal stops, without recording access tokens, authorization codes or cookie values.
+
+---
+
 ## Version 2.1.17-64bit
 
 ### Fixed in Version 2.1.17-64bit
