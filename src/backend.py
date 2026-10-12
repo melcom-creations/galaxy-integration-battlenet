@@ -7,10 +7,12 @@ import time
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 from http import HTTPStatus
+from urllib.parse import quote
 
 from galaxy.api.errors import (
     AccessDenied, AuthenticationRequired,
-    BackendTimeout, BackendNotAvailable, BackendError, InvalidCredentials, NetworkError, UnknownError
+    BackendTimeout, BackendNotAvailable, BackendError, InvalidCredentials, NetworkError, UnknownError,
+    TooManyRequests, UnknownBackendResponse
 )
 
 from consts import FIREFOX_AGENT
@@ -153,5 +155,32 @@ class BackendClient(object):
 
     async def get_ow_player_data(self):
         player_name = self._authentication_client.user_details['battletag']
-        url = f"https://owapi.io/profile/pc/{self._authentication_client.region}/{player_name.replace('#', '-')}"
-        return await self.do_request('GET', url)
+        player_id = quote(player_name.replace('#', '-'), safe='')
+        url = f"https://overfast-api.tekrop.fr/players/{player_id}/stats/summary"
+
+        def fetch_profile():
+            try:
+                # Public statistics must never use the authenticated Blizzard session.
+                with requests.Session() as session:
+                    response = session.get(
+                        url, params={'platform': 'pc', 'gamemode': 'quickplay'},
+                        headers={'User-Agent': FIREFOX_AGENT},
+                        timeout=self._authentication_client.timeout, allow_redirects=False,
+                    )
+                if response.status_code == HTTPStatus.NOT_FOUND:
+                    return None
+                if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    raise TooManyRequests()
+                self.handle_status_code(response.status_code)
+                if response.status_code != HTTPStatus.OK:
+                    raise UnknownBackendResponse("Unexpected Overwatch statistics response")
+                try:
+                    return response.json()
+                except ValueError:
+                    raise UnknownBackendResponse("Invalid Overwatch statistics response") from None
+            except requests.Timeout:
+                raise BackendTimeout() from None
+            except requests.RequestException:
+                raise NetworkError() from None
+
+        return await asyncio.get_running_loop().run_in_executor(None, fetch_profile)

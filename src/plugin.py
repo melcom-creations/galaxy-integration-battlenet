@@ -28,7 +28,8 @@ from galaxy.api.plugin import Plugin, create_and_run_plugin
 from galaxy.api.types import Achievement, Game, LicenseInfo, LocalGame, GameTime, LicenseType, NextStep
 from galaxy.api.errors import (
     AuthenticationRequired, BackendTimeout, BackendNotAvailable, BackendError,
-    NetworkError, UnknownError, InvalidCredentials, UnknownBackendResponse
+    NetworkError, UnknownError, InvalidCredentials, UnknownBackendResponse,
+    AccessDenied, TooManyRequests
 )
 
 from version import __version__ as version
@@ -787,26 +788,55 @@ class BNetPlugin(Plugin):
         return GameTime(game_id, total_time, last_played_time)
 
     async def _get_overwatch_time(self) -> Union[None, int]:
-        log.debug("Fetching playtime for Overwatch...")
-        player_data = await self.backend_client.get_ow_player_data()
-        if 'message' in player_data:  # No Overwatch profile exists for this account.
-            log.error('No Overwatch profile found.')
-            return None
-        if player_data['private'] == True:
-            log.info('Unable to get data as Overwatch profile is private.')
-            return None
-        qp_time = player_data['playtime'].get('quickplay')
-        if qp_time is None:  # No Quick Play time has been recorded.
-            return 0
-        if qp_time.count(':') == 1:  # Minutes and seconds.
-            match = re.search('(?:(?P<m>\\d+):)(?P<s>\\d+)', qp_time)
-            if match:
-                return int(match.group('m'))
-        elif qp_time.count(':') == 2:  # Hours, minutes and seconds.
-            match = re.search('(?:(?P<h>\\d+):)(?P<m>\\d+)', qp_time)
-            if match:
-                return int(match.group('h')) * 60 + int(match.group('m'))
-        raise UnknownBackendResponse(f'Unknown Overwatch API playtime format: {qp_time}')
+        details = self.authentication_client.user_details or {}
+        scope = (str(details.get('id') or ''), details.get('battletag'))
+        try:
+            snapshot = self._load_cache('overwatch_web_time')
+        except (ValueError, TypeError):
+            snapshot = None
+        cached_minutes = None
+        if (scope[0] and scope[1] and isinstance(snapshot, dict)
+                and snapshot.get('user_id') == scope[0] and snapshot.get('battletag') == scope[1]
+                and type(snapshot.get('minutes')) is int and snapshot['minutes'] >= 0):
+            cached_minutes = snapshot['minutes']
+
+        if (getattr(self, '_overwatch_lookup_scope', None) == scope
+                and time.monotonic() < getattr(self, '_overwatch_retry_after', 0)):
+            return cached_minutes
+
+        try:
+            player_data = await self.backend_client.get_ow_player_data()
+            if player_data is None:
+                log.info('Overwatch public profile unavailable; retaining known playtime.')
+                return cached_minutes
+            if not isinstance(player_data, dict) or 'general' not in player_data:
+                raise UnknownBackendResponse("Unexpected Overwatch statistics structure")
+            general = player_data['general']
+            if general is None:
+                log.info('Overwatch PC Quick Play statistics unavailable; retaining known playtime.')
+                return cached_minutes
+            if not isinstance(general, dict):
+                raise UnknownBackendResponse("Unexpected Overwatch statistics structure")
+            seconds = general.get('time_played')
+            if type(seconds) is not int or seconds < 0:
+                raise UnknownBackendResponse("Invalid Overwatch playtime")
+            # The provider reports PC Quick Play time in seconds.
+            minutes = seconds // 60
+            if cached_minutes is not None:
+                minutes = max(minutes, cached_minutes)
+            if scope[0] and scope[1]:
+                self._save_cache('overwatch_web_time', {
+                    'user_id': scope[0], 'battletag': scope[1], 'minutes': minutes,
+                })
+            return minutes
+        except (AuthenticationRequired, AccessDenied, BackendTimeout, BackendNotAvailable,
+                BackendError, NetworkError, UnknownError, UnknownBackendResponse, TooManyRequests) as error:
+            log.warning('Overwatch statistics unavailable (%s); retaining known playtime.',
+                        type(error).__name__)
+            return cached_minutes
+        finally:
+            self._overwatch_lookup_scope = scope
+            self._overwatch_retry_after = time.monotonic() + 300
 
     async def _get_wow_achievements(self):
         achievements = []

@@ -4,6 +4,19 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.19-64bit
+
+### Fixed for Version 2.1.19-64bit
+
+- **Overwatch Imports During Statistics Outages:** An unavailable public profile, network failure or invalid statistics response no longer prevents importing the available last-played timestamp. Successfully retrieved online playtime is retained for the same Battle.net account and BattleTag, and missing data is reported as unknown rather than zero. Local playtime still takes precedence. Repeated online lookups are limited to once every five minutes.
+- **Public Statistics Request Isolation:** Overwatch statistics requests use a separate public session without the plugin's Blizzard authorization header or login cookies.
+
+### Changed for Version 2.1.19-64bit
+
+- **Overwatch Statistics Provider:** Replaced the failing `owapi.io` source with OverFast's public statistics API. Online playtime continues to cover PC Quick Play and is converted from seconds to Galaxy's minutes. Statistics depend on public profile availability.
+
+---
+
 ## Version 2.1.18-64bit
 
 ### Fixed in Version 2.1.18-64bit

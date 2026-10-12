@@ -169,6 +169,10 @@ Clicking **Install** in GOG Galaxy opens the bundled `wc3_classic_info.html` gui
 
 A valid registered product key is required for both routes. Existing keys can be redeemed through the [Battle.net Shop](https://us.shop.battle.net/en-us) under **Profile -> Account Settings -> Account Overview -> Redeem a Code**.
 
+### Overwatch Playtime
+
+Locally recorded playtime takes priority. When local playtime is unavailable, the plugin uses [OverFast](https://overfast-api.tekrop.fr/) to retrieve PC Quick Play time from a public Overwatch profile. These requests do not include Blizzard login credentials or cookies. Successfully retrieved online time is retained for the same account and BattleTag if the profile or service later becomes unavailable. Without a known value, playtime remains unknown while an available last-played timestamp can still be imported.
+
 ## 🛠️ Troubleshooting
 
 Restart Galaxy and the store app and try one synchronization. If the problem remains, collect a fresh log. A database reset is not required for this.
