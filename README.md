@@ -18,6 +18,7 @@ The steps below are for Windows. Dependencies are bundled; no separate Python in
 * Automatically discovers additional installed games on Windows when Battle.net provides matching installation metadata and a game launch link
 * Launches, installs, and uninstalls games through the Battle.net desktop app
 * Tracks local game time for Battle.net games
+* Supports the World of Warcraft: Forever release client with its own Galaxy tile and playtime
 * Guides you through the required personal Blizzard API client setup inside GOG Galaxy
 * Stores the personal OAuth configuration outside the plugin folder and protects it with Windows DPAPI
 * Supports current game definitions, including Diablo IV
@@ -139,17 +140,23 @@ The plugin uses your Battle.net login to restore access to the account library a
 
 Starting with version 2.1.14-64bit, the Windows integration can discover additional installed games using Battle.net's local game information. New installations can appear while Galaxy is running, and discovered games open through Battle.net.
 
-Some games are not reported by Battle.net as owned before they are installed. If a game is missing from your Galaxy library, install it through the Battle.net desktop app. The plugin should detect it as soon as Battle.net marks the installation as playable. This currently applies to **Overwatch** and the supported **World of Warcraft Classic** editions.
+Some games are not reported by Battle.net as owned before they are installed. If a game is missing from your Galaxy library, install it through the Battle.net desktop app. The plugin should detect it once Battle.net marks the installation as installed or playable. This currently applies to **Overwatch**, the supported **World of Warcraft Classic** editions, and **World of Warcraft: Forever**.
 
 If the game still does not appear, keep Battle.net open and follow [First Start and Initial Sync](#-first-start-and-initial-sync). Discovery also depends on GOG's catalog matching, so some games and beta versions may still require a plugin update.
 
 The Witcher 3 Remastered has not yet been validated with this version.
 
-### 🎮 World of Warcraft Classic: One Tile, Four Editions
+### 🎮 World of Warcraft Classic
 
-**Classic Era, Mists of Pandaria Classic, Burning Crusade Classic Anniversary Edition, and the World of Warcraft: Forever beta share one "World of Warcraft Classic" tile.** The integration uses GOG's existing Classic catalog entry; separate tiles for these editions are not supported with the current catalog mappings.
+**Classic Era, Mists of Pandaria Classic, and Burning Crusade Classic Anniversary Edition share one "World of Warcraft Classic" tile.** Supported Classic beta clients also use this tile when available.
 
-Click **Play** in Galaxy to open Battle.net, select your edition from the **World of Warcraft Classic** version menu, then click **Play** there. The game does not start automatically. On Windows, all four editions report their running state and combined playtime to the same Galaxy tile. Waiting in Battle.net does not count as playtime.
+Click **Play** in Galaxy to open Battle.net, select your edition from the **World of Warcraft Classic** version menu, then click **Play** there. The game does not start automatically. On Windows, supported Classic editions report their running state and combined playtime to the same Galaxy tile. Waiting in Battle.net does not count as playtime.
+
+### 🎮 World of Warcraft: Forever
+
+Install the **World of Warcraft: Forever release client** through Battle.net. The plugin detects the `wowf` client in `_forever_` and displays it as a separate Galaxy tile.
+
+Click **Play** in Galaxy to select Forever in Battle.net, then click **Play** there. Its running state and local playtime are separate from Classic and Retail. Time is recorded only while the game process is running. Previously recorded Classic beta playtime stays under Classic.
 
 ### 📚 Library Contents After Synchronization
 

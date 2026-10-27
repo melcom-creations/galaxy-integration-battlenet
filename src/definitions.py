@@ -123,6 +123,8 @@ class _Blizzard(object, metaclass=Singleton):
         BlizzardGame('s2', 'StarCraft II', 'S2'),
         BlizzardGame('wow', 'World of Warcraft', 'WoW'),
         BlizzardGame('wow_classic', 'World of Warcraft Classic', 'WoW_wow_classic'),
+        WoWVariantGame('wowf', 'World of Warcraft: Forever',
+                       'WoW_wowf', 'wowf', '_forever_', 'Wow.exe'),
         WoWVariantGame('wow_classic_era', 'World of Warcraft Classic Era',
                        'WoW_wow_classic_era', 'wow_classic_era',
                        '_classic_era_', 'WowClassic.exe'),

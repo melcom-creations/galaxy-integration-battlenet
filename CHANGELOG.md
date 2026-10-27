@@ -4,6 +4,18 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.20-64bit
+
+### Added in Version 2.1.20-64bit
+
+- **World of Warcraft: Forever:** Detects the installed `wowf` client in `_forever_` as a separate game, with its own running state and local playtime. Play opens Forever in Battle.net. The Classic beta continues to use the shared World of Warcraft Classic tile.
+
+### Fixed in Version 2.1.20-64bit
+
+- **WoW process separation:** Excludes the Forever client from Retail WoW process tracking when both share an installation folder.
+
+---
+
 ## Version 2.1.19-64bit
 
 ### Fixed for Version 2.1.19-64bit

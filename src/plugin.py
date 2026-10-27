@@ -112,6 +112,7 @@ class BNetPlugin(Plugin):
         self._classic_session_started = None
         self._classic_session_saved_seconds = 0
         self._classic_last_state = None
+        self._forever_last_state = None
 
     def _install_command_game_id(self, game_id):
         if game_id == 'w2be':
@@ -159,7 +160,7 @@ class BNetPlugin(Plugin):
         self.create_task(self.local_client.register_local_data_watcher(), 'local data watcher')
         self.create_task(self.local_client.register_classic_games_updater(), 'classic games updater')
         if SYSTEM == pf.WINDOWS:
-            self.create_task(self._watch_classic_processes(), 'WoW Classic process watcher')
+            self.create_task(self._watch_classic_processes(), 'WoW process watcher')
         # Resolve the region early so the login window can open without delay.
         try:
             loop = asyncio.get_running_loop()
@@ -206,14 +207,32 @@ class BNetPlugin(Plugin):
             self._classic_last_state = state
             log.info('Classic group state: %s; running editions: %s', state, sorted(running))
 
+    async def _poll_forever_processes(self):
+        game = self.local_client.get_installed_games().get('wowf')
+        installed = game is not None and game.has_galaxy_installed_state
+        if not installed and self._forever_last_state is None:
+            return
+        running = await asyncio.to_thread(ProcessProvider().update_games_processes, [game]) if installed else set()
+        state = LocalGameState.Installed if installed else LocalGameState.None_
+        if running:
+            state |= LocalGameState.Running
+            if 'wowf' not in self.watched_running_games:
+                # Count the actual game process, including starts outside Galaxy.
+                self.create_task(self._notify_about_game_stop(game, 0), 'WoW Forever game stop waiter')
+        if state != self._forever_last_state:
+            self.update_local_game_status(LocalGame('wowf', state))
+            self._forever_last_state = state
+            log.info('WoW Forever state: %s', state)
+
     async def _watch_classic_processes(self):
         try:
             while True:
                 try:
                     if self._owned_games_imported:
                         await self._poll_classic_processes()
+                        await self._poll_forever_processes()
                 except Exception:
-                    log.exception('WoW Classic process scan failed')
+                    log.exception('WoW process scan failed')
                 await asyncio.sleep(2)
         finally:
             await self._checkpoint_classic_time(time.monotonic(), finished=True)
@@ -273,7 +292,7 @@ class BNetPlugin(Plugin):
                 name = Blizzard[catalog_id].name if catalog_id != blizz_id else refr.info.name
                 self.add_game(Game(catalog_id, name, None, LicenseInfo(LicenseType.Unknown)))
                 self._imported_game_ids.add(catalog_id)
-            if SYSTEM == pf.WINDOWS and catalog_id == 'wow_classic':
+            if SYSTEM == pf.WINDOWS and catalog_id in ('wow_classic', 'wowf'):
                 continue  # Config timestamps do not prove that a game is running.
             prev = previous_games.get(blizz_id, None)
 
@@ -298,7 +317,7 @@ class BNetPlugin(Plugin):
             self._report_local_status(blizz_id, state, refreshed_games)
 
         for blizz_id, prev in previous_games.items():
-            if SYSTEM == pf.WINDOWS and self._catalog_id(blizz_id) == 'wow_classic':
+            if SYSTEM == pf.WINDOWS and self._catalog_id(blizz_id) in ('wow_classic', 'wowf'):
                 continue
             refr = refreshed_games.get(blizz_id, None)
             if refr is None:
@@ -370,9 +389,8 @@ class BNetPlugin(Plugin):
         if not self.authentication_client.is_authenticated():
             raise AuthenticationRequired()
 
-        if self._catalog_id(game_id) == 'wow_classic':
-            # Battle.net reports that classic WoW cannot be uninstalled through the protocol.
-            # Delegate the uninstall request to the Battle.net client.
+        if self._catalog_id(game_id) in ('wow_classic', 'wowf'):
+            # Let Battle.net manage editions that share the WoW installation root.
             installed_game = self._installed_game_for_id(game_id)
             return self._open_battlenet_at_id(installed_game.info.uid if installed_game else game_id)
 
@@ -426,6 +444,11 @@ class BNetPlugin(Plugin):
 
             self.local_client.refresh()
             log.info(f'Launching game of id: {game_id}, {game}')
+            if SYSTEM == pf.WINDOWS and game_id == 'wowf':
+                # Select the registered product without re-registering the shared
+                # WoW installation. Preloads can wait here until Play is available.
+                self.local_client.open_battlenet('wowf')
+                return
             if SYSTEM == pf.WINDOWS and self._catalog_id(game_id) == 'wow_classic':
                 self.local_client.select_classic_variant(game)
                 # Any edition may be selected later. Keep Battle.net open and

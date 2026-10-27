@@ -51,11 +51,11 @@ class InstalledGame(object):
         else:
             self.execs = pathfinder.find_executables(self.install_path)
             if info.uid == 'wow':
-                # Retail shares the install root, but must not track Classic.
-                classic_paths = [Path(install_path) / folder for folder in
-                                 ('_classic_', '_classic_era_', '_anniversary_', '_classic_beta_')]
+                # Retail shares the install root with separate WoW products.
+                variant_paths = [Path(install_path) / folder for folder in
+                                 ('_classic_', '_classic_era_', '_anniversary_', '_classic_beta_', '_forever_')]
                 self.execs = [exe for exe in self.execs
-                              if not any(Path(exe).is_relative_to(path) for path in classic_paths)]
+                              if not any(Path(exe).is_relative_to(path) for path in variant_paths)]
         self._processes = set()
 
     @property
