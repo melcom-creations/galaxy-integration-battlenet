@@ -4,6 +4,18 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.1.21-64bit
+
+### Fixed in Version 2.1.21-64bit
+
+- **Authentication error handling:** Distinguishes temporary Battle.net server errors, request limits, and malformed OAuth responses from rejected credentials, avoiding unnecessary setup prompts and misleading redirect-URL errors.
+
+### Changed in Version 2.1.21-64bit
+
+- **OAuth service:** Uses Blizzard's global OAuth endpoints outside China for sign-in, token exchange, token validation, and account identification. Game API requests retain the selected region.
+
+---
+
 ## Version 2.1.20-64bit
 
 ### Added in Version 2.1.20-64bit

@@ -16,6 +16,7 @@ from galaxy.api.errors import (
 )
 
 from consts import FIREFOX_AGENT
+from http_client import raise_for_oauth_service_error
 
 class AccessTokenExpired(Exception):
     pass
@@ -135,7 +136,24 @@ class BackendClient(object):
 
     async def validate_access_token(self, access_token):
         token_url = f"{self._authentication_client.blizzard_oauth_url}/check_token"
-        return await self.do_request("POST", token_url, data={"token": access_token}, ignore_failure=True)
+        response = await self.do_request("POST", token_url, data={"token": access_token},
+                                         json=False, ignore_failure=True)
+        raise_for_oauth_service_error(response.status_code)
+        try:
+            status = response.json()
+        except ValueError:
+            raise UnknownBackendResponse("Battle.net returned an invalid token validation response.") from None
+        if response.status_code in (200, 400, 401) and isinstance(status, dict):
+            # An explicit invalid_token response permits normal session renewal;
+            # an incomplete service response is not evidence of a rejected login.
+            if status.get('error') == 'invalid_token':
+                return status
+            authorities = status.get('authorities')
+            if (response.status_code == 200 and 'error' not in status
+                    and isinstance(authorities, list)
+                    and all(isinstance(authority, str) for authority in authorities)):
+                return status
+        raise UnknownBackendResponse("Battle.net returned an unexpected token validation response.")
 
     async def get_sc2_player_data(self, account_id):
         url = f"{self._authentication_client.blizzard_api_url}/sc2/player/{account_id}"

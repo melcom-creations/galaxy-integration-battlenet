@@ -11,7 +11,9 @@ import requests.cookies
 from urllib.parse import urlencode, urlsplit, urljoin
 from typing import Any, Dict, Optional
 
-from galaxy.api.errors import InvalidCredentials, BackendTimeout, NetworkError
+from galaxy.api.errors import (InvalidCredentials, BackendTimeout, NetworkError,
+                               BackendError, BackendNotAvailable, TooManyRequests,
+                               UnknownBackendResponse)
 from galaxy.api.types import Authentication, NextStep
 
 from consts import REDIRECT_URI, FIREFOX_AGENT
@@ -20,6 +22,18 @@ from oauth_callback import CallbackError, CallbackRejected, LocalOAuthCallbackSe
 from region_helper import _found_region, guess_region
 
 log = logging.getLogger(__name__)
+
+
+def raise_for_oauth_service_error(status_code):
+    """Keep temporary OAuth service failures separate from rejected credentials."""
+    if status_code == 429:
+        raise TooManyRequests("Battle.net is limiting login requests. Try again later.")
+    if status_code == 503:
+        raise BackendNotAvailable("Battle.net authentication is temporarily unavailable. Try again later.")
+    if status_code == 504:
+        raise BackendTimeout("Battle.net authentication timed out. Try again later.")
+    if status_code >= 500:
+        raise BackendError(f"Battle.net authentication service failed (HTTP {status_code}). Try again later.")
 
 
 class AuthenticatedHttpClient(object):
@@ -117,21 +131,22 @@ class AuthenticatedHttpClient(object):
                 response = session.post(f"{self.blizzard_oauth_url}/token", data=data,
                                         timeout=self.timeout, allow_redirects=False)
                 if response.status_code != 200:
-                    log.warning("Battle.net token exchange rejected: HTTP %s", response.status_code)
+                    log.warning("Battle.net token exchange failed: HTTP %s", response.status_code)
+                    raise_for_oauth_service_error(response.status_code)
                     raise InvalidCredentials("Battle.net login could not be completed; check the registered local Redirect URL")
                 result = response.json()
                 token = result.get('access_token') if isinstance(result, dict) else None
                 if not isinstance(token, str) or not token:
                     log.warning("Battle.net token exchange returned no access token.")
-                    raise InvalidCredentials("Battle.net did not return an access token")
+                    raise UnknownBackendResponse("Battle.net did not return an access token. Try again later.")
                 return token
         except requests.Timeout:
             raise BackendTimeout() from None
-        except requests.RequestException:
-            raise NetworkError() from None
         except ValueError:
             log.warning("Battle.net token exchange returned invalid JSON.")
-            raise InvalidCredentials("Invalid Battle.net token response") from None
+            raise UnknownBackendResponse("Battle.net returned an invalid token response. Try again later.") from None
+        except requests.RequestException:
+            raise NetworkError() from None
 
     async def refresh_access_token_with_cookies(self) -> str:
         """Follow only Blizzard HTTPS redirects; consume the local callback without requesting it."""
@@ -181,6 +196,7 @@ class AuthenticatedHttpClient(object):
                     # query parameters, response bodies or cookie values.
                     log.info("Battle.net renewal hop %d: host=%s HTTP=%s",
                              hop + 1, parsed.hostname, response.status_code)
+                    raise_for_oauth_service_error(response.status_code)
                     if response.status_code not in (301, 302, 303, 307, 308):
                         log.warning("Battle.net renewal stopped: response did not continue the authorization redirect.")
                         raise InvalidCredentials("Battle.net requires an interactive login; please reconnect")
@@ -323,7 +339,8 @@ class AuthenticatedHttpClient(object):
                 window.setTimeout(function () { watcher.disconnect(); }, 600000);
             }
         })();""".replace('__ERROR_URI__', json.dumps(error_uri))
-        origins = {self.blizzard_oauth_url.split('/oauth')[0], self.blizzard_accounts_url}
+        oauth_origin = urlsplit(self.blizzard_oauth_url)
+        origins = {f'{oauth_origin.scheme}://{oauth_origin.netloc}', self.blizzard_accounts_url}
         if self.region != 'cn':
             origins.update({'https://oauth.battle.net', 'https://account.battle.net', 'https://account.blizzard.com'})
         scripts = {'^' + re.escape(origin) + r'(?::443)?/': [script] for origin in origins}
@@ -433,7 +450,7 @@ class AuthenticatedHttpClient(object):
         if self.region == 'cn':
             return "https://www.battlenet.com.cn/oauth"
         else:
-            return f"https://{self.region}.battle.net/oauth"
+            return "https://oauth.battle.net"
 
     @property
     def blizzard_api_url(self):
